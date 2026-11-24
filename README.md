@@ -13,7 +13,8 @@ Sistem pemeriksaan kelayakan perumahan & fasilitas karyawan (Kamishibai Digital)
 | Database | PostgreSQL (Neon) via Prisma — sandbox demo: SQLite (`db/custom.db`) |
 | Autentikasi | bcryptjs + JWT HS256 (`jose`) — cookie httpOnly & `Authorization: Bearer` |
 | Peta | Leaflet + OpenStreetMap |
-| Mobile | Capacitor (APK), konfigurasi server lewat "Set IP" di layar login |
+| Mobile | Capacitor 8 (APK Android) — WebView shell ke server Vercel; konfigurasi server lewat "Set IP" di layar login; **build otomatis via GitHub Actions, versi APK naik tiap build** — panduan: DEPLOY.md §6.9 |
+| Branding | Nama & ikon aplikasi (ikon 192/512 web, launcher APK, splash) tinggal tukar file: `public/icon-192.png`, `public/icon-512.png`, `assets/icon.png`, `assets/splash.png` — panduan: DEPLOY.md §6.10 |
 | Ekspor | XLSX & JSON server-side (`/api/export/*`) |
 
 ## Mulai cepat (sandbox/demo)
@@ -37,6 +38,9 @@ src/lib/auth.ts                 # JWT, bcrypt, RBAC, rate-limit login
 src/lib/scope.ts                # resolusi binding pengguna → scope data
 src/app/api/…                   # REST API (auth, inspeksi, temuan, master, export, health)
 src/components/web|mobile       # UI portal web & layar APK
+capacitor.config.ts             # konfigurasi APK (isi server.url = domain Vercel)
+www/                            # shell web statis APK (jembatan ke server)
+.github/workflows/build-apk.yml  # build APK otomatis di Actions (versi naik tiap build)
 scripts/deploy/                 # penerapan: Neon, porting data, generator skema Postgres
 vercel.json                     # buildCommand Vercel (schema Postgres + prisma db push otomatis)
 ```
@@ -56,6 +60,10 @@ git push -u origin main
 scripts/deploy/neon-sync.sh "postgresql://…neon.tech/rumahlayak?sslmode=require" --port
 
 # 3. Import repo di Vercel, set env DATABASE_URL + AUTH_SECRET → Deploy
+
+# 4. APK otomatis: tiap push ke main, GitHub Actions membangun APK dengan
+#    versi naik sendiri — unduh di tab Actions → Artifacts atau halaman Releases
+#    (atur variabel repo APP_SERVER_URL dulu — lihat DEPLOY.md §6.9)
 ```
 
 Variabel lingkungan produksi: `DATABASE_URL` (Neon PostgreSQL) dan `AUTH_SECRET` (JWT) — contoh di [.env.example](./.env.example).

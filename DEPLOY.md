@@ -103,12 +103,138 @@ Tanpa skrip (manual): `DATABASE_URL=<neon> scripts/deploy/prepare-postgres.sh` l
 
 ## 6. APK Android (Capacitor)
 
-APK tidak perlu dibangun ulang untuk ganti server:
+APK memakai model **WebView shell**: aplikasi Android memuat UI langsung dari server Vercel, sedangkan API & penyimpanan token sudah diarahkan perangkat (`src/lib/api.ts` — token di localStorage, menu **Set IP**). Artinya: **pembaruan aplikasi cukup deploy ulang ke Vercel — APK tidak perlu dibangun ulang.**
 
-1. Buka APK → layar login → **ikon gerigi** kanan atas → **Set IP / Alamat server**.
-2. Masukkan domain Vercel, contoh `https://rumahlayak.vercel.app` (boleh tanpa `https://`).
-3. **Download data master** untuk cache offline, lalu login.
-4. Token JWT disimpan di perangkat (localStorage) — bila `AUTH_SECRET` diganti, pengguna harus login ulang.
+### 6.1 Prasyarat di laptop
+
+| Alat | Versi | Catatan |
+|---|---|---|
+| Node.js | ≥ 20 | untuk npm/npx |
+| JDK | **21** (Temurin/Adoptium) | wajib untuk Capacitor 8 / Gradle 8 |
+| Android Studio | terbaru | memuat Android SDK; buka sekali → More Actions → SDK Manager (instal Android 15/API 35) |
+
+Setelah instal, cek: `java -version` (harus 21) dan `node -v`.
+
+### 6.2 Siapkan proyek di laptop
+
+```bash
+git clone https://github.com/afiashidqia89-ops/MyHome.git
+cd MyHome
+npm install
+```
+
+### 6.3 Arahkan APK ke domain Vercel (WAJIB sebelum build)
+
+Buka `capacitor.config.ts` dan isi `server.url` dengan domain Vercel Anda:
+
+```ts
+url: "https://myhome-afiashidqia89-ops.vercel.app",  // contoh — sesuaikan
+```
+
+> Kerjakan ini **setelah** aplikasi live di Vercel (langkah 4) sehingga APK langsung terhubung.
+
+### 6.4 Buat proyek Android (sekali saja)
+
+```bash
+npm run cap:add      # npx cap add android — membuat folder android/
+```
+
+Folder `android/` di-commit juga (konvensi Capacitor) agar tim lain bisa membangun ulang.
+
+### 6.5 Bangun APK
+
+```bash
+npm run cap:sync     # salin webDir + plugin native ke proyek android
+
+# Windows (PowerShell/CMD):
+cd android && gradlew.bat assembleDebug
+
+# macOS/Linux:
+cd android && ./gradlew assembleDebug
+```
+
+Hasil: `android/app/build/outputs/apk/debug/app-debug.apk` — siap dipasang untuk uji internal.
+
+### 6.6 APK rilis bertanda tangan (opsional — untuk distribusi luas)
+
+```bash
+keytool -genkeypair -v -keystore rumahlayak.keystore -alias rumahlayak -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Lalu di `android/app/build.gradle` tambahkan `signingConfigs.release` (simpan sandi di `gradle.properties` lokal, JANGAN di-commit) dan jalankan `gradlew assembleRelease` → `app-release.apk`.
+
+### 6.7 Pasang & uji di ponsel
+
+1. Salin APK ke ponsel dan buka (izinkan "instal sumber tidak dikenal"), atau `adb install -r app-debug.apk`.
+2. Aplikasi terbuka → langsung memuat domain Vercel.
+3. Bila perlu ganti server: layar login → **ikon gerigi** kanan atas → **Set IP / Alamat server**.
+4. **Download data master** untuk cache offline, lalu login `budi` / `fauzi` / `hendra` (sandi `demo123`).
+5. Token JWT disimpan di perangkat (localStorage) — bila `AUTH_SECRET` diganti, pengguna harus login ulang.
+
+### 6.8 Kapan APK perlu dibangun ulang?
+
+| Perubahan | Rebuild APK? |
+|---|---|
+| Perbaikan bug / fitur baru di UI & API | Tidak — deploy ulang Vercel saja |
+| Ganti alamat server bawaan | Ya — edit `capacitor.config.ts` → `npx cap sync android` → build |
+| Ikon, nama, versi, permission (kamera/GPS) | Ya |
+| Pindah dari debug ke release bertanda tangan | Ya |
+
+### 6.9 Build APK otomatis via GitHub Actions (tanpa Android Studio)
+
+Repo memuat workflow **`.github/workflows/build-apk.yml`**: GitHub membangun APK di server-nya (runner ubuntu-latest sudah memuat Android SDK) — laptop tidak perlu JDK/Android Studio. **Setiap ada update (push ke `main`), nomor versi APK naik otomatis.**
+
+**Setup sekali:**
+1. Upload workflow + `scripts/apk/apply-version.mjs` ke repo → **Settings → Secrets and variables → Actions → tab Variables → New repository variable**:
+   - Name: `APP_SERVER_URL`
+   - Value: `https://<domain-vercel-Anda>.vercel.app`
+2. Tab **Actions** di repo → workflow **Build APK** → **Run workflow** (atau otomatis tiap push ke `main` yang menyentuh `src/`, `www/`, `capacitor.config.ts`, `package.json`).
+3. Setelah run hijau (±4–6 menit) → unduh APK di bagian **Artifacts** (bawah halaman run, `RumahLayak-debug-apk`) atau di halaman **Releases** (file `RumahLayak-v<versi>-debug.apk` terlampir pada release terbaru).
+
+**Cara versi naik otomatis** (logika di `scripts/apk/apply-version.mjs`):
+
+| Komponen | Sumber | Contoh |
+|---|---|---|
+| `versionCode` | nomor build GitHub (`GITHUB_RUN_NUMBER`, +1 tiap workflow jalan) | `7` |
+| `versionName` | mayor.minor dari `package.json` + nomor build | `0.2.7` |
+| Nama file APK | dibuat dari versionName | `RumahLayak-v0.2.7-debug.apk` |
+| Tag Release | dibuat otomatis per build | `v0.2.7` |
+
+Karena `versionCode` selalu naik, Android menganggap APK terbaru sebagai **pembaruan** — bisa dipasang langsung di atas versi lama tanpa uninstall.
+
+**Naik versi besar** (mis. 1.0 / 2.0): ubah field `"version"` di `package.json` (mis. `"1.0.0"`) lalu push — versionName build berikutnya otomatis menjadi `1.0.<nomor build>`.
+
+> Bila variabel `APP_SERVER_URL` belum diisi, build tetap jalan tetapi APK memakai placeholder `server.url` (run ditandai warning). `capacitor.config.ts` membaca `process.env.CAP_SERVER_URL`, diisi workflow dari variabel repo.
+
+Untuk APK **rilis bertanda tangan** di CI (opsional): simpan keystore base64 + sandi di repository *Secrets* (mis. `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`), tambahkan step dekode + `signingConfig` Gradle, lalu jalankan `assembleRelease`.
+
+### 6.10 Mengganti nama aplikasi & ikon (192/512/APK)
+
+**Nama aplikasi** — tampil di beberapa tempat, ubah sesuai kebutuhan:
+
+| Nama yang tampil di mana | File yang diedit | Bagian |
+|---|---|---|
+| Di bawah ikon APK (launcher Android) | `capacitor.config.ts` | `appName: "RumahLayak"` |
+| Nama file APK & judul Release GitHub | Variabel repo `APP_NAME` (opsional) | Settings → Variables; kosong = `RumahLayak` |
+| Judul tab browser (web dashboard) | `src/app/layout.tsx` | `metadata.title` |
+| Halaman jembatan saat APK menyala | `www/index.html` | `<title>` dan `<h1>` |
+| Nama aplikasi PWA (web install) | `public/manifest.webmanifest` | `name` & `short_name` |
+
+**Ikon aplikasi** — satu motif brand (rumah emas + pohon kanopi di atas hijau sawit) dipakai di semua tempat. Untuk mengganti, cukup tukar file berikut lalu push (build APK otomatis berjalan):
+
+| Pakai di mana | File yang diganti | Ukuran |
+|---|---|---|
+| Ikon web/PWA 192×192 | `public/icon-192.png` | 192×192 px |
+| Ikon web/PWA 512×512 | `public/icon-512.png` | 512×512 px |
+| **Ikon launcher APK** (semua ukuran mipmap dibuat otomatis oleh `@capacitor/assets` saat build) | `assets/icon.png` | 1024×1024 px |
+| **Splash screen APK** | `assets/splash.png` | 2732×2732 px |
+| Logo vektor di halaman web | `public/logo.svg` | bebas (SVG) |
+
+Catatan penting:
+- Untuk `assets/icon.png`, jaga gambar utama di **tengah ±60% kanvas** — Android memotong ikon menjadi lingkaran/iskan adaptif, bagian pinggir bisa hilang.
+- Folder `android/` tidak perlu disentuh: workflow `build-apk.yml` menjalankan `npx @capacitor/assets generate --android` setelah `cap add`, sehingga semua `mipmap-*/ic_launcher.png` dan splash dibuat ulang dari `assets/`.
+- Ikon web (192/512) juga tercantum di `public/manifest.webmanifest` dan dirujuk `src/app/layout.tsx`; bila nama file diganti, sesuaikan keduanya.
+- Generator ikon bawaan repo dapat dijalankan ulang: `python3 scripts/buat-ikon-brand.py`.
 
 ## 7. Catatan teknis
 
