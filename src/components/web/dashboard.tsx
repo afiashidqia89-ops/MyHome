@@ -11,7 +11,7 @@ import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieCh
 const LEVEL_COLORS = ["#84cc16", "#eab308", "#ea580c", "#b91c1c"];
 
 export function WebDashboard() {
-  const { session, master, setActiveFinding, setMode, setMobileScreen, setWebPage } = useStore();
+  const { session, master, setWebPage } = useStore();
   const { data: inspections = [] } = useInspeksi(true);
   const { data: findings = [] } = useTemuan(true);
   const { data: aksiLog = [] } = useAktivitas(true);
@@ -133,7 +133,7 @@ export function WebDashboard() {
           <div className="mt-3 space-y-2">
             {menungguVerifikasi.length === 0 && <p className="text-[12px] italic text-slate-400">Tidak ada antrean verifikasi.</p>}
             {menungguVerifikasi.map((f) => (
-              <button key={f.id} onClick={() => { setActiveFinding(f.id); setMode("mobile"); setMobileScreen("finding-detail"); }} className="flex w-full items-center gap-2 rounded-lg border border-slate-200 p-2.5 text-left hover:border-forest">
+              <button key={f.id} onClick={() => setWebPage("rekap")} className="flex w-full items-center gap-2 rounded-lg border border-slate-200 p-2.5 text-left hover:border-forest">
                 <LevelBadge level={f.level} />
                 <div className="min-w-0 flex-1">
                   <p className="text-[12px] font-bold text-slate-700">{f.kode} • {namaBarak(f.barakId)}</p>
@@ -171,7 +171,7 @@ export function WebDashboard() {
 
 // ============ DASHBOARD AUDITEE — fokus tugas tindak lanjut yang ditugaskan ============
 function DashboardAuditee() {
-  const { session, setActiveFinding, setMode, setMobileScreen } = useStore();
+  const { session, setWebPage } = useStore();
   const { data: findings = [] } = useTemuan(true);
 
   const perluTindak = findings.filter((f) => f.status === "OPEN" || f.status === "IN_PROGRESS");
@@ -180,11 +180,8 @@ function DashboardAuditee() {
   const overdue = findings.filter((f) => f.status !== "CLOSED" && new Date(`${f.targetSelesai}T00:00:00+07:00`) < new Date());
   const urutSla = (a: typeof findings[number], b: typeof findings[number]) => a.targetSelesai.localeCompare(b.targetSelesai);
 
-  const bukaDiApk = (id: string) => {
-    setActiveFinding(id);
-    setMode("mobile");
-    setMobileScreen("finding-detail");
-  };
+  // Di portal web, daftar temuan dilihat lewat halaman Rekap (detail & eksekusi tetap di APK)
+  const bukaRekap = () => setWebPage("rekap");
 
   return (
     <div className="space-y-4">
@@ -217,7 +214,7 @@ function DashboardAuditee() {
               </div>
               <SlaInfo target={f.targetSelesai} />
               <StatusTemuanBadge status={f.status} />
-              <Button onClick={() => bukaDiApk(f.id)} className="h-8 shrink-0 bg-forest px-3 text-[11px] hover:bg-forest-deep">Tindak Lanjut</Button>
+              <Button onClick={bukaRekap} className="h-8 shrink-0 bg-forest px-3 text-[11px] hover:bg-forest-deep">Lihat di Rekap</Button>
             </div>
           ))}
         </div>
@@ -230,7 +227,7 @@ function DashboardAuditee() {
           <div className="mt-3 space-y-2">
             {menungguVerif.length === 0 && <p className="text-[12px] italic text-slate-400">Tidak ada bukti yang menunggu verifikasi.</p>}
             {menungguVerif.map((f) => (
-              <button key={f.id} onClick={() => bukaDiApk(f.id)} className="flex w-full items-center gap-2 rounded-lg border border-slate-200 p-2.5 text-left hover:border-forest">
+              <button key={f.id} onClick={bukaRekap} className="flex w-full items-center gap-2 rounded-lg border border-slate-200 p-2.5 text-left hover:border-forest">
                 <LevelBadge level={f.level} />
                 <div className="min-w-0 flex-1">
                   <p className="text-[12px] font-bold text-slate-700">{f.kode} • {namaBarak(f.barakId)}</p>
