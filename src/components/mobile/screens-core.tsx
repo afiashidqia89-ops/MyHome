@@ -329,7 +329,7 @@ export function PengaturanPerangkat({ onTutup }: { onTutup: () => void }) {
 
 // ============ PROFIL ============
 export function ProfileScreen() {
-  const { session, setMode, setMobileScreen } = useStore();
+  const { session, setMobileScreen } = useStore();
   const refresh = useRefresh();
   const [cekKoneksi, setCekKoneksi] = useState<"idle" | "cek" | "ok" | "gagal">("idle");
   const [serverInfo, setServerInfo] = useState<string>("");
@@ -389,7 +389,6 @@ export function ProfileScreen() {
         <div className="mt-3 rounded-xl border bg-white p-3">
           <p className="text-[11px] font-bold text-slate-500">AKSI</p>
           <Button variant="outline" onClick={keluar} className="mt-2 h-9 w-full justify-start text-[12px]"><LogOut className="mr-2 h-4 w-4" /> Keluar (akhiri sesi)</Button>
-          <Button variant="ghost" onClick={() => setMode("web")} className="mt-1 h-9 w-full justify-start text-[12px] text-forest">Buka Portal Web (Dashboard)</Button>
         </div>
       </div>
     </div>
