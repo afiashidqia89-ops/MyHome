@@ -27,7 +27,7 @@ export function menuWebPerPeran(role: string | undefined) {
 }
 
 export function WebLayout({ children }: { children: React.ReactNode }) {
-  const { webPage, setWebPage, session, master, setMode } = useStore();
+  const { webPage, setWebPage, session, master } = useStore();
   const admin = session?.role === "ADMIN";
   const auditee = session?.role === "AUDITEE";
   const menu = menuWebPerPeran(session?.role);
@@ -66,9 +66,6 @@ export function WebLayout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="border-t border-white/10 p-3">
-          <button onClick={() => setMode("mobile")} className="mb-2 w-full rounded-lg border border-gold/40 px-3 py-2 text-[11px] font-semibold text-gold hover:bg-white/10">
-            Buka Tampilan APK Mobile
-          </button>
           <div className="flex items-center gap-2 px-1">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-[11px] font-bold text-white">{session?.nama.split(" ").map((w) => w[0]).join("")}</span>
             <div className="min-w-0">
