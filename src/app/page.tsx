@@ -4,8 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useStore } from "@/lib/store";
 import { qk, useMaster, useSession } from "@/lib/queries";
 import { api, setToken } from "@/lib/api";
-import { ringkasBinding } from "@/lib/utils-rl";
-import { PhoneFrame, BottomNav, layarAwal } from "@/components/mobile/frame";
+import { BottomNav, layarAwal } from "@/components/mobile/frame";
 import { LoginScreen, ProfileScreen, LogoMark } from "@/components/mobile/screens-core";
 import { InspectNewScreen, InspectScreen, InspectItemScreen } from "@/components/mobile/screens-inspect";
 import { FindingsScreen, FindingDetailScreen, HistoryScreen } from "@/components/mobile/screens-findings";
@@ -19,11 +18,10 @@ import { WebMaster } from "@/components/web/master";
 import { WebUsers } from "@/components/web/users";
 import { WebDocs } from "@/components/web/docs";
 import { toast } from "sonner";
-import { Github, Database, Triangle, Smartphone, Monitor, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 import { useState } from "react";
 import type { SessionUser } from "@/lib/types";
 
@@ -146,9 +144,20 @@ function AppRoot() {
     useStore.getState().setMaster(masterData ?? null);
   }, [masterData]);
 
+  // Deteksi lingkungan sekali saat mulai:
+  //   - APK (dijalankan di WebView Capacitor) → tampilan MOBILE penuh layar
+  //   - Browser ponsel (layar sempit) → tampilan MOBILE penuh layar
+  //   - Browser desktop → PORTAL WEB penuh
+  // Tidak ada mode "gabungan": web ya web, APK ya APK.
+  useEffect(() => {
+    const diApk = typeof window !== "undefined" && "Capacitor" in window;
+    const layarSempit = typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 767px)").matches;
+    useStore.getState().setMode(diApk || layarSempit ? "mobile" : "web");
+  }, []);
+
   if (sessLoading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center bg-slate-200">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-forest-deep">
         <div className="animate-pulse text-center text-white">
           <LogoMark size={64} />
           <p className="mt-3 text-[13px] font-bold">RumahLayak — menghubungkan ke server...</p>
@@ -160,102 +169,29 @@ function AppRoot() {
   const authenticated = !!session;
   const siap = authenticated && !!master;
 
-  return (
-    <div className="flex min-h-screen flex-col bg-slate-200">
-      {/* Top bar */}
-      <header className="sticky top-0 z-40 flex flex-wrap items-center gap-3 border-b border-slate-300 bg-white/90 px-4 py-2.5 shadow-sm backdrop-blur">
-        <div className="flex items-center gap-2">
-          <LogoMark size={30} />
-          <div>
-            <p className="text-[13px] font-extrabold leading-tight text-slate-800">RumahLayak</p>
-            <p className="text-[9px] leading-tight text-slate-500">Sistem Produksi v1.0 — Pemeriksaan Kelayakan Perumahan & Fasilitas Karyawan</p>
-          </div>
-        </div>
-
-        <div className="ml-auto flex items-center gap-1.5">
-          {session && (
-            <span className="hidden rounded-full bg-forest-soft px-2.5 py-1 text-[10px] font-bold text-forest sm:inline">
-              {session.nama} • {session.role}{session.bindings?.length ? ` • ${ringkasBinding(session.bindings)}` : ""}
-            </span>
-          )}
-          <div className="flex rounded-full border border-slate-200 bg-slate-100 p-0.5">
-            <button
-              onClick={() => useStore.getState().setMode("mobile")}
-              className={cn("flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold transition", mode === "mobile" ? "bg-forest text-white shadow" : "text-slate-500 hover:text-slate-700")}
-            >
-              <Smartphone className="h-3.5 w-3.5" /> APK Mobile
-            </button>
-            <button
-              onClick={() => useStore.getState().setMode("web")}
-              className={cn("flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold transition", mode === "web" ? "bg-forest text-white shadow" : "text-slate-500 hover:text-slate-700")}
-            >
-              <Monitor className="h-3.5 w-3.5" /> Web Dashboard
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Info stack */}
-      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-forest-deep px-4 py-1.5 text-[10px] text-white/70">
-        <span className="flex items-center gap-1"><Github className="h-3 w-3" /> GitHub — version control & CI</span>
-        <span className="flex items-center gap-1"><Triangle className="h-3 w-3" /> Vercel — hosting web + API</span>
-        <span className="flex items-center gap-1"><Database className="h-3 w-3" /> PostgreSQL Neon-ready — data nyata</span>
-        <span className="flex items-center gap-1"><Smartphone className="h-3 w-3" /> Capacitor — build APK</span>
+  // ===== APK / ponsel: aplikasi MOBILE penuh layar — tanpa bingkai, tanpa panel samping =====
+  if (mode === "mobile") {
+    return (
+      <div className="flex h-[100dvh] flex-col bg-slate-100">
+        {!authenticated ? <LoginScreen /> : !siap ? (
+          <div className="flex flex-1 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-forest" /></div>
+        ) : (
+          <MobileApp />
+        )}
       </div>
+    );
+  }
 
-      {mode === "mobile" ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-8 px-4 py-8 xl:flex-row xl:items-start xl:gap-12">
-          <aside className="hidden w-72 shrink-0 xl:block">
-            <div className="rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
-              <p className="text-[12px] font-bold text-forest">Perbedaan dari Prototipe</p>
-              <ul className="mt-2 list-disc space-y-1.5 pl-4 text-[11px] leading-relaxed text-slate-600">
-                <li><b>Login tanpa pilih kebun</b> — akun terikat kebun tempat didaftarkan (server menegakkan)</li>
-                <li>Autentikasi bcrypt + JWT httpOnly, rate-limit login</li>
-                <li>Database PostgreSQL (Prisma) — bukan localStorage; transaksi atomik</li>
-                <li>REST API dengan RBAC: auditor/auditee/admin, scope per kebun</li>
-                <li>Ekspor XLSX/JSON dibangun di server; audit trail AksiLog</li>
-                <li>Siap deploy: GitHub + Vercel + Neon + Capacitor</li>
-              </ul>
-            </div>
-            <div className="mt-4 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
-              <p className="text-[12px] font-bold text-forest">Coba Alur Ini</p>
-              <ol className="mt-2 space-y-1.5">
-                {[
-                  "Login budi / demo123 (AUDITOR — Kebun Mandor)",
-                  "Mulai Pemeriksaan → pilih perumahan → nilai item → MERAH wajib temuan + level",
-                  "Simpan → data tersimpan di server, langsung muncul di Portal Web",
-                  "Login fauzi (AUDITEE) → kirim bukti perbaikan",
-                  "Auditor verifikasi & tutup → kartu kembali HIJAU",
-                ].map((p, i) => (
-                  <li key={i} className="flex gap-2 text-[11px] leading-relaxed text-slate-600">
-                    <span className="flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-forest-soft px-1.5 text-[9px] font-bold text-forest">{i + 1}</span>
-                    {p}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </aside>
-          <PhoneFrame>
-            {!authenticated ? <LoginScreen /> : !siap ? (
-              <div className="flex h-full items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-forest" /></div>
-            ) : (
-              <MobileApp />
-            )}
-          </PhoneFrame>
-        </div>
-      ) : !authenticated ? (
-        <WebLogin />
-      ) : !siap ? (
-        <div className="flex flex-1 items-center justify-center p-10">
-          {masterLoading ? <Loader2 className="h-6 w-6 animate-spin text-forest" /> : <p className="text-[12px] text-slate-500">Master data belum tersedia.</p>}
-        </div>
-      ) : (
-        <div className="flex-1">
-          <WebApp />
-        </div>
-      )}
-    </div>
-  );
+  // ===== Browser desktop: PORTAL WEB penuh — tanpa mockup HP =====
+  if (!authenticated) return <WebLogin />;
+  if (!siap) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-slate-100">
+        {masterLoading ? <Loader2 className="h-6 w-6 animate-spin text-forest" /> : <p className="text-[12px] text-slate-500">Master data belum tersedia.</p>}
+      </div>
+    );
+  }
+  return <WebApp />;
 }
 
 export default function Home() {
