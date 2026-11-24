@@ -1,0 +1,397 @@
+"use client";
+import { useEffect, useState } from "react";
+import { useStore } from "@/lib/store";
+import { api, apiUrl, clearToken, getServerUrl, normalisasiServerUrl, setServerUrl, setToken } from "@/lib/api";
+import { bacaMasterCache, hapusMasterCache, simpanMasterCache } from "@/lib/master-cache";
+import type { MasterCache } from "@/lib/master-cache";
+import { VERSI_APLIKASI, bandingkanVersi } from "@/lib/version";
+import { cn } from "@/lib/utils";
+import { qk, useRefresh } from "@/lib/queries";
+import { fmtTanggalWaktu, ringkasBinding } from "@/lib/utils-rl";
+import { useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { CheckCircle2, Database, Download, HardDriveDownload, Loader2, LockKeyhole, LogOut, MapPin, RefreshCw, Server, Settings, Trash2, Wifi, X, ArrowRight } from "lucide-react";
+import { ScreenHeader, layarAwal } from "@/components/mobile/frame";
+import type { SessionUser } from "@/lib/types";
+
+export function LogoMark({ size = 56 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden>
+      <circle cx="32" cy="32" r="30" fill="#14532D" />
+      <circle cx="32" cy="32" r="30" fill="none" stroke="#D4AF37" strokeWidth="2.5" />
+      <path d="M16 34 L32 18 L48 34" fill="none" stroke="#D4AF37" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="21" y="33" width="22" height="14" rx="1.5" fill="#F7FBF8" />
+      <rect x="29.5" y="38" width="5" height="9" fill="#14532D" />
+      <rect x="23" y="36" width="4" height="4" fill="#1F7A41" />
+      <rect x="37" y="36" width="4" height="4" fill="#1F7A41" />
+    </svg>
+  );
+}
+
+// ============ LOGIN (tanpa pemilihan kebun — binding dari pendaftaran) ============
+export function LoginScreen() {
+  const setSession = useStore((s) => s.setSession);
+  const setMobileScreen = useStore((s) => s.setMobileScreen);
+  const qc = useQueryClient();
+  const [username, setUsername] = useState("budi");
+  const [pw, setPw] = useState("demo123");
+  const [kirim, setKirim] = useState(false);
+  const [pengaturan, setPengaturan] = useState(false);
+
+  const masuk = async (pengguna?: string, sandi?: string) => {
+    setKirim(true);
+    try {
+      const res = await api.post<{ user: SessionUser; token: string }>(
+        "/api/auth/login",
+        { username: pengguna ?? username, password: sandi ?? pw },
+      );
+      setToken(res.token); // sesi Bearer — tetap hidup di iframe preview & WebView Capacitor
+      qc.setQueryData(qk.session, { authenticated: true as const, user: res.user });
+      qc.invalidateQueries({ queryKey: qk.master });
+      setMobileScreen(layarAwal(res.user.role)); // langsung ke layar kerja utama sesuai peran
+      toast.success(
+        res.user.bindings?.length
+          ? `Selamat datang, ${res.user.nama} — terikat ${ringkasBinding(res.user.bindings)}`
+          : `Selamat datang, ${res.user.nama}`,
+      );
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setKirim(false);
+    }
+  };
+
+  const aksesCepat = [
+    { username: "budi", nama: "Budi Santoso", peran: "AUDITOR — Estate Manager (EM)" },
+    { username: "fauzi", nama: "Ahmad Fauzi", peran: "AUDITEE — Asisten Afdeling I" },
+    { username: "hendra", nama: "Hendra Wijaya", peran: "ADMIN — Portal Web" },
+  ];
+
+  return (
+    <div className="relative flex h-full flex-col overflow-hidden bg-gradient-to-b from-forest-deep via-forest to-forest-deep text-white">
+      {/* Gear kanan-atas: Set IP, data master offline, update aplikasi */}
+      <button
+        onClick={() => setPengaturan(true)}
+        aria-label="Pengaturan perangkat"
+        className="absolute right-3 top-3 z-20 rounded-full bg-white/15 p-2 text-white/90 backdrop-blur transition hover:bg-white/25"
+      >
+        <Settings className="h-4 w-4" />
+      </button>
+      <div className="flex-1 overflow-y-auto thin-scroll px-5 py-6">
+      <div className="flex flex-col items-center pt-6 text-center">
+        <LogoMark size={64} />
+        <h1 className="mt-2 text-xl font-extrabold">RumahLayak</h1>
+        <p className="text-[10px] text-white/60">Kamishibai Emplasemen Perumahan — Sistem Produksi</p>
+      </div>
+
+      <div className="mt-6 rounded-2xl bg-white p-4 text-slate-800 shadow-xl">
+        <p className="text-[13px] font-bold text-forest">Masuk ke Akun Anda</p>
+        <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
+          <LockKeyhole className="h-3 w-3" /> Akun otomatis terikat kebun tempat Anda didaftarkan — tidak perlu memilih kebun.
+        </p>
+        <div className="mt-3 space-y-3">
+          <div>
+            <Label className="text-[11px] text-slate-500">Nama Pengguna</Label>
+            <Input value={username} onChange={(e) => setUsername(e.target.value)} className="mt-1 h-10 text-[13px]" placeholder="cth: budi" autoCapitalize="none" />
+          </div>
+          <div>
+            <Label className="text-[11px] text-slate-500">Kata Sandi</Label>
+            <Input type="password" value={pw} onChange={(e) => setPw(e.target.value)} className="mt-1 h-10 text-[13px]" onKeyDown={(e) => e.key === "Enter" && masuk()} />
+          </div>
+          <Button onClick={() => masuk()} disabled={kirim} className="h-11 w-full bg-forest text-[13px] font-bold hover:bg-forest-deep">
+            {kirim ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Memverifikasi...</> : "Masuk"}
+          </Button>
+        </div>
+        <div className="my-3 flex items-center gap-2">
+          <span className="h-px flex-1 bg-slate-200" /><span className="text-[10px] text-slate-400">AKUN DEMO</span><span className="h-px flex-1 bg-slate-200" />
+        </div>
+        <div className="space-y-2">
+          {aksesCepat.map((a) => (
+            <button key={a.username} onClick={() => { setUsername(a.username); setPw("demo123"); masuk(a.username, "demo123"); }} className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-left transition hover:border-forest hover:bg-forest-soft">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-forest text-[11px] font-bold text-white">{a.nama.split(" ").map((w) => w[0]).join("")}</span>
+              <span className="min-w-0">
+                <span className="block truncate text-[12px] font-bold text-slate-800">{a.nama}</span>
+                <span className="block truncate text-[10px] text-slate-500">{a.peran}</span>
+              </span>
+              <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-slate-300" />
+            </button>
+          ))}
+        </div>
+        <p className="mt-3 rounded-lg bg-gold-soft p-2 text-[10px] leading-relaxed text-gold-deep">
+          Autentikasi produksi: sandi di-hash <b>bcrypt</b>, sesi <b>JWT httpOnly cookie</b> (7 hari), dicatat di audit trail. Tidak ada pendaftaran mandiri — user baru didaftarkan admin (tanpa email) dengan binding kebun.
+        </p>
+      </div>
+      <p className="mt-4 text-center text-[10px] text-white/50">Login terikat peran: AUDITOR / AUDITEE / ADMIN</p>
+      </div>
+      {pengaturan && <PengaturanPerangkat onTutup={() => setPengaturan(false)} />}
+    </div>
+  );
+}
+
+// ============ PENGATURAN PERANGKAT (gear layar login — pra-authentikasi) ============
+type StatusAksi = "idle" | "jalan" | "ok" | "gagal";
+
+export function PengaturanPerangkat({ onTutup }: { onTutup: () => void }) {
+  const [ip, setIp] = useState(getServerUrl() ?? "");
+  const [uji, setUji] = useState<StatusAksi>("idle");
+  const [infoUji, setInfoUji] = useState("");
+  const [unduh, setUnduh] = useState<StatusAksi>("idle");
+  const [infoUnduh, setInfoUnduh] = useState("");
+  const [cache, setCache] = useState<MasterCache | null>(null);
+  const [update, setUpdate] = useState<StatusAksi | "tersedia">("idle");
+  const [infoUpdate, setInfoUpdate] = useState("");
+  const [versiServer, setVersiServer] = useState<{ versi: string; urlUnduh: string | null } | null>(null);
+
+  useEffect(() => setCache(bacaMasterCache()), []);
+
+  const simpanIp = async () => {
+    const bersih = ip.trim();
+    if (!bersih) {
+      setServerUrl(null);
+      setUji("idle");
+      setInfoUji("Kembali ke server bawaan (tempat aplikasi ini dilayani).");
+      return;
+    }
+    const url = normalisasiServerUrl(bersih);
+    if (!url) {
+      setUji("gagal");
+      setInfoUji("Format tidak valid — contoh yang benar: 192.168.1.10:3000");
+      return;
+    }
+    setServerUrl(url);
+    setUji("jalan");
+    try {
+      const h = await api.get<{ status: string; database: string; waktu: string }>("/api/health");
+      setUji("ok");
+      setInfoUji(`Terhubung ${url} — ${h.database} • ${fmtTanggalWaktu(h.waktu)}`);
+    } catch (e) {
+      setUji("gagal");
+      setInfoUji(`Gagal terhubung: ${(e as Error).message} — cek IP/port & jaringan`);
+    }
+  };
+
+  const pakaiBawaan = () => {
+    setServerUrl(null);
+    setIp("");
+    setUji("idle");
+    setInfoUji("Memakai server bawaan — tempat aplikasi ini dilayani.");
+  };
+
+  const unduhMaster = async () => {
+    setUnduh("jalan");
+    setInfoUnduh("");
+    try {
+      const res = await fetch(apiUrl("/api/public/master"), { cache: "no-store" }); // endpoint publik, tanpa token
+      const body = (await res.json()) as Record<string, unknown> & { baraks?: unknown[]; afdelings?: unknown[]; checklist?: unknown[] };
+      if (!res.ok) throw new Error((body.error as string) ?? `Gagal (${res.status})`);
+      const ukuran = simpanMasterCache(body as never, getServerUrl() ?? "(server bawaan)");
+      setCache(bacaMasterCache());
+      setUnduh("ok");
+      setInfoUnduh(
+        `Tersimpan: ${body.baraks?.length ?? 0} perumahan • ${body.afdelings?.length ?? 0} afdeling • ${body.checklist?.length ?? 0} item checklist • ${(ukuran / 1024).toFixed(1)} KB`,
+      );
+    } catch (e) {
+      setUnduh("gagal");
+      setInfoUnduh(`Gagal mengunduh: ${(e as Error).message}`);
+    }
+  };
+
+  const hapusCache = () => {
+    hapusMasterCache();
+    setCache(null);
+    setUnduh("idle");
+    setInfoUnduh("Cache data master dihapus dari perangkat.");
+  };
+
+  const cekUpdate = async () => {
+    setUpdate("jalan");
+    setInfoUpdate("");
+    try {
+      const v = await (await fetch(apiUrl("/api/app-version"), { cache: "no-store" })).json() as { versi: string; urlUnduh: string | null; catatan: string };
+      setVersiServer({ versi: v.versi, urlUnduh: v.urlUnduh });
+      if (bandingkanVersi(v.versi, VERSI_APLIKASI) > 0) {
+        setUpdate("tersedia");
+        setInfoUpdate(`v${v.versi} tersedia — ${v.catatan}`);
+      } else {
+        setUpdate("ok");
+        setInfoUpdate(`Server: v${v.versi} — aplikasi sudah versi terbaru.`);
+      }
+    } catch (e) {
+      setUpdate("gagal");
+      setInfoUpdate(`Gagal memeriksa: ${(e as Error).message}`);
+    }
+  };
+
+  const unduhUpdate = () => {
+    if (versiServer?.urlUnduh) {
+      window.open(versiServer.urlUnduh, "_blank");
+      toast.info("Unduhan dimulai — instal setelah selesai, lalu buka ulang aplikasi.");
+    } else {
+      toast.info("Tautan APK belum diatur server — hubungi IT / muat ulang aplikasi PWA.");
+    }
+  };
+
+  const garisStatus = (info: string, status: StatusAksi | "tersedia") =>
+    info ? (
+      <p className={cn(
+        "mt-2 rounded-lg px-2 py-1.5 text-[10.5px] leading-relaxed",
+        status === "ok" && "bg-green-50 text-green-700",
+        status === "gagal" && "bg-red-50 text-red-600",
+        status === "jalan" && "bg-slate-50 text-slate-500",
+        (status === "idle" || status === "tersedia") && "bg-amber-50 text-amber-800",
+      )}>{info}</p>
+    ) : null;
+
+  return (
+    <div className="absolute inset-0 z-30 flex flex-col bg-slate-100 text-slate-800">
+      <header className="flex shrink-0 items-center gap-2 bg-gradient-to-r from-forest to-forest-deep px-4 py-3 text-white">
+        <button onClick={onTutup} aria-label="Tutup pengaturan" className="rounded-full bg-white/15 p-1.5 text-white hover:bg-white/25">
+          <X className="h-4 w-4" />
+        </button>
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-bold leading-tight">Pengaturan Perangkat</h2>
+          <p className="text-[11px] text-white/70">Server, data offline & pembaruan — tersedia sebelum login</p>
+        </div>
+      </header>
+
+      <div className="flex-1 space-y-3 overflow-y-auto thin-scroll p-3">
+        {/* ---------- SET IP ---------- */}
+        <section className="rounded-xl border bg-white p-3">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500"><Server className="h-3.5 w-3.5 text-forest" /> ALAMAT SERVER (SET IP)</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+            Alamat API yang dipakai perangkat lapangan. Kosong = server bawaan tempat aplikasi dilayani.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <Input
+              value={ip}
+              onChange={(e) => setIp(e.target.value)}
+              placeholder="contoh: 192.168.1.10:3000"
+              className="h-9 flex-1 font-mono text-[12px]"
+              aria-label="Alamat server"
+            />
+            <Button onClick={simpanIp} disabled={uji === "jalan"} className="h-9 shrink-0 bg-forest px-3 text-[11.5px] font-bold hover:bg-forest-deep">
+              {uji === "jalan" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Wifi className="mr-1 h-3.5 w-3.5" />} Simpan & Uji
+            </Button>
+          </div>
+          {garisStatus(infoUji, uji)}
+          <button onClick={pakaiBawaan} className="mt-1.5 w-full rounded-lg py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 hover:text-forest">
+            Pakai Server Bawaan
+          </button>
+        </section>
+
+        {/* ---------- DATA MASTER OFFLINE ---------- */}
+        <section className="rounded-xl border bg-white p-3">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500"><HardDriveDownload className="h-3.5 w-3.5 text-forest" /> DATA MASTER OFFLINE</p>
+          {cache ? (
+            <p className="mt-1 text-[10.5px] leading-relaxed text-slate-600">
+              Tersimpan {fmtTanggalWaktu(cache.diunduh)} dari {cache.sumber}: {cache.data.baraks.length} perumahan • {cache.data.afdelings.length} afdeling • {cache.data.checklist.length} item.
+            </p>
+          ) : (
+            <p className="mt-1 text-[10.5px] leading-relaxed text-slate-400">
+              Belum ada cache — unduh agar APK tetap bisa menampilkan peta & checklist saat sinyal lemah.
+            </p>
+          )}
+          <div className="mt-2 flex gap-2">
+            <Button onClick={unduhMaster} disabled={unduh === "jalan"} className="h-9 flex-1 bg-forest text-[11.5px] font-bold hover:bg-forest-deep">
+              {unduh === "jalan" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />} Unduh Data Master
+            </Button>
+            {cache && (
+              <Button variant="outline" onClick={hapusCache} aria-label="Hapus cache" className="h-9 shrink-0 border-red-200 px-3 text-red-600 hover:bg-red-50">
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+          {garisStatus(infoUnduh, unduh)}
+          <p className="mt-1 text-[9.5px] text-slate-400">Cache dipakai otomatis bila server tidak terjangkau; tidak memuat data pengguna.</p>
+        </section>
+
+        {/* ---------- UPDATE APLIKASI ---------- */}
+        <section className="rounded-xl border bg-white p-3">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500"><RefreshCw className="h-3.5 w-3.5 text-forest" /> APLIKASI</p>
+          <p className="mt-1 text-[10.5px] text-slate-600">Versi terpasang: <b>v{VERSI_APLIKASI}</b></p>
+          <Button onClick={cekUpdate} disabled={update === "jalan"} variant="outline" className="mt-2 h-9 w-full text-[11.5px] text-forest">
+            {update === "jalan" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />} Periksa Update
+          </Button>
+          {garisStatus(infoUpdate, update)}
+          {update === "tersedia" && (
+            <Button onClick={unduhUpdate} className="mt-2 h-9 w-full bg-gold text-[11.5px] font-bold text-forest-deep hover:bg-gold-soft">
+              <Download className="mr-1.5 h-3.5 w-3.5" /> Unduh Update (v{versiServer?.versi})
+            </Button>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+// ============ PROFIL ============
+export function ProfileScreen() {
+  const { session, setMode, setMobileScreen } = useStore();
+  const refresh = useRefresh();
+  const [cekKoneksi, setCekKoneksi] = useState<"idle" | "cek" | "ok" | "gagal">("idle");
+  const [serverInfo, setServerInfo] = useState<string>("");
+  if (!session) return null;
+
+  const ujiServer = async () => {
+    setCekKoneksi("cek");
+    try {
+      const h = await api.get<{ status: string; database: string; waktu: string }>("/api/health");
+      setServerInfo(`${h.database} • ${h.status.toUpperCase()} • ${fmtTanggalWaktu(h.waktu)}`);
+      setCekKoneksi("ok");
+    } catch {
+      setCekKoneksi("gagal");
+    }
+  };
+
+  const keluar = async () => {
+    try { await api.post("/api/auth/logout"); } catch { /* abaikan */ }
+    clearToken();
+    setMobileScreen("login");
+    window.location.reload();
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <ScreenHeader title="Profil & Perangkat" />
+      <div className="flex-1 overflow-y-auto thin-scroll p-3">
+        <div className="rounded-2xl bg-gradient-to-br from-forest to-forest-deep p-4 text-white">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-[14px] font-bold">{session.nama.split(" ").map((w) => w[0]).join("")}</div>
+            <div>
+              <p className="text-[14px] font-bold">{session.nama}</p>
+              <p className="text-[11px] text-white/70">{session.jabatan}</p>
+            </div>
+            <span className="ml-auto rounded bg-gold px-2 py-0.5 text-[10px] font-bold text-forest-deep">{session.role}</span>
+          </div>
+          <div className="mt-3 space-y-1 text-[11px] text-white/75">
+            <p>Nama Pengguna: {session.username}</p>
+            <p className="flex items-center gap-1"><MapPin className="h-3 w-3 text-gold" /> Binding: {ringkasBinding(session.bindings, "Corporate — seluruh kebun")} — ditetapkan saat pendaftaran</p>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-xl border bg-white p-3">
+          <p className="text-[11px] font-bold text-slate-500">SERVER & SINKRONISASI</p>
+          <div className="mt-2 space-y-1.5 text-[11px] text-slate-600">
+            <p className="flex items-center gap-1.5"><Server className="h-3.5 w-3.5 text-forest" /> API: <span className="truncate">/api (server ini • PostgreSQL Neon-ready)</span></p>
+            <p className="flex items-center gap-1.5"><Database className="h-3.5 w-3.5 text-forest" /> Status: {cekKoneksi === "ok" ? serverInfo : cekKoneksi === "cek" ? "menguji..." : cekKoneksi === "gagal" ? "tidak terhubung" : "sudah terhubung sejak login"}</p>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <Button variant="outline" onClick={ujiServer} className="h-9 flex-1 text-[11.5px] text-forest">
+              {cekKoneksi === "cek" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1 h-3.5 w-3.5" />} Uji Koneksi
+            </Button>
+            <Button variant="outline" onClick={refresh} className="h-9 flex-1 text-[11.5px] text-forest"><Database className="mr-1 h-3.5 w-3.5" /> Refresh Data</Button>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-xl border bg-white p-3">
+          <p className="text-[11px] font-bold text-slate-500">AKSI</p>
+          <Button variant="outline" onClick={keluar} className="mt-2 h-9 w-full justify-start text-[12px]"><LogOut className="mr-2 h-4 w-4" /> Keluar (akhiri sesi)</Button>
+          <Button variant="ghost" onClick={() => setMode("web")} className="mt-1 h-9 w-full justify-start text-[12px] text-forest">Buka Portal Web (Dashboard)</Button>
+        </div>
+      </div>
+    </div>
+  );
+}

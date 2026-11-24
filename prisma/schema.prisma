@@ -1,0 +1,261 @@
+// ============================================================
+// RumahLayak — Skema Database Produksi
+// Sandbox demo : SQLite (provider di bawah)
+// Produksi Neon: ganti provider menjadi "postgresql" dan
+//                arahkan DATABASE_URL ke Neon (lihat /api docs
+//                di halaman Dokumentasi Teknis aplikasi).
+// Semua model bebas fitur spesifik provider sehingga migrasi
+// SQLite -> Neon Postgres hanya mengubah 1 baris provider.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Struktur organisasi (binding user -> kebun) ----------
+model Estate {
+  id       String        @id
+  nama     String
+  kebuns   Kebun[]
+  bindings UserBinding[]
+}
+
+model Kebun {
+  id        String        @id
+  estateId  String
+  nama      String
+  estate    Estate        @relation(fields: [estateId], references: [id])
+  afdelings Afdeling[]
+  users     User[]
+  bindings  UserBinding[]
+
+  @@index([estateId])
+}
+
+model Afdeling {
+  id      String        @id
+  kebunId String
+  nama    String
+  lat     Float
+  lng     Float
+  kebun   Kebun         @relation(fields: [kebunId], references: [id])
+  baraks  Barak[]
+  users   User[]
+  bindings UserBinding[]
+
+  @@index([kebunId])
+}
+
+model Barak {
+  id         String        @id
+  afdelingId String
+  nama       String
+  tipe       String
+  kapasitas  Int
+  lat        Float
+  lng        Float
+  afdeling   Afdeling      @relation(fields: [afdelingId], references: [id])
+  inspeksi   Inspeksi[]
+  temuan     Temuan[]
+  bindings   UserBinding[]
+
+  @@index([afdelingId])
+}
+
+// ---------- Pengguna (terikat kebun sejak pendaftaran) ----------
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique // identitas login — dibuat otomatis admin, tanpa email
+  nama         String
+  passwordHash String
+  role         String // AUDITOR | AUDITEE | ADMIN
+  jabatan      String?
+  kebunId      String? // binding utama (kompatibilitas — dibarui dari binding pertama)
+  afdelingId   String?
+  status       String   @default("PENDING") // ACTIVE | PENDING | REJECTED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  kebun        Kebun?         @relation(fields: [kebunId], references: [id])
+  afdeling     Afdeling?      @relation(fields: [afdelingId], references: [id])
+  bindings     UserBinding[]
+  inspeksi     Inspeksi[]     @relation("AuditorInspeksi")
+  temuanPic    Temuan[]       @relation("PicAuditee")
+  tindakLanjut TindakLanjut[]
+  aksiLog      AksiLog[]
+
+  @@index([kebunId])
+  @@index([role, status])
+}
+
+// ---------- Binding multi-level user <-> unit organisasi ----------
+// Satu user bisa diberi LEBIH DARI SATU estate/kebun/afeling/perumahan via
+// checkbox saat pendaftaran (admin web). Resolusi scope: binding estate
+// mencakup semua kebun di bawahnya, dst. (lihat src/lib/scope.ts).
+model UserBinding {
+  id         String  @id @default(cuid())
+  userId     String
+  estateId   String?
+  kebunId    String?
+  afdelingId String?
+  barakId    String?
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  estate   Estate?  @relation(fields: [estateId], references: [id])
+  kebun    Kebun?   @relation(fields: [kebunId], references: [id])
+  afdeling Afdeling? @relation(fields: [afdelingId], references: [id])
+  barak    Barak?    @relation(fields: [barakId], references: [id])
+
+  @@index([userId])
+}
+
+// ---------- Master data pemeriksaan ----------
+model Kartu {
+  id      String // KMS-01 .. KMS-04
+  nama    String
+  singkat String
+  warna   String
+  items   ChecklistItem[]
+
+  @@id([id])
+}
+
+model ChecklistItem {
+  id      String // A1 .. D8 (27 item)
+  kartuId String
+  nomor   Int
+  label   String
+  standar String
+  kartu   Kartu @relation(fields: [kartuId], references: [id])
+
+  @@id([id])
+  @@index([kartuId])
+}
+
+model MatriksApproval {
+  id         Int     @id // 1..4
+  jalur      String
+  sumberDana String
+  kategori   String
+  pengaju    String
+  verifikator String
+  final      String
+  sla        String
+}
+
+// ---------- Transaksi pemeriksaan ----------
+model Inspeksi {
+  id         String   @id @default(cuid())
+  kode       String   @unique
+  tanggal    DateTime
+  minggu     Int
+  periode    String // contoh: "November 2026"
+  barakId    String
+  auditorId  String
+  picLabel   String // EM / GM
+  kesimpulan String?
+  status     String   @default("TERKIRIM") // DRAFT | TERKIRIM
+  lat        Float?
+  lng        Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  barak   Barak       @relation(fields: [barakId], references: [id])
+  auditor User        @relation("AuditorInspeksi", fields: [auditorId], references: [id])
+  hasil   HasilItem[]
+  temuan  Temuan[]
+
+  @@index([periode, minggu])
+  @@index([barakId])
+}
+
+model HasilItem {
+  id         String  @id @default(cuid())
+  inspeksiId String
+  itemId     String
+  status     String? // H | M | null (belum dinilai)
+  catatan    String?
+  inspeksi   Inspeksi @relation(fields: [inspeksiId], references: [id])
+  fotos      Foto[]
+
+  @@unique([inspeksiId, itemId])
+  @@index([inspeksiId])
+}
+
+model Foto {
+  id        String   @id @default(cuid())
+  hasilId   String?
+  tindakId  String?
+  dataUrl   String // data URL JPEG hasil kamera + watermark GPS/waktu
+  lat       Float
+  lng       Float
+  label     String
+  createdAt DateTime @default(now())
+
+  hasil  HasilItem?     @relation(fields: [hasilId], references: [id])
+  tindak TindakLanjut?  @relation(fields: [tindakId], references: [id])
+
+  @@index([hasilId])
+  @@index([tindakId])
+}
+
+// ---------- Temuan & tindak lanjut ----------
+model Temuan {
+  id             String   @id @default(cuid())
+  kode           String   @unique // TND-001 ..
+  inspeksiId     String
+  barakId        String
+  afdelingId     String
+  itemId         String
+  uraian         String
+  level          Int // 1..4 (matriks approval)
+  mitigasiDarurat String?
+  noWO           String?
+  targetSelesai  DateTime
+  status         String   @default("OPEN") // OPEN | IN_PROGRESS | SUBMITTED | VERIFIED | CLOSED
+  auditeeId      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  inspeksi     Inspeksi       @relation(fields: [inspeksiId], references: [id])
+  barak        Barak          @relation(fields: [barakId], references: [id])
+  auditee      User?          @relation("PicAuditee", fields: [auditeeId], references: [id])
+  tindakLanjut TindakLanjut[]
+
+  @@index([status])
+  @@index([barakId])
+  @@index([afdelingId])
+}
+
+model TindakLanjut {
+  id        String   @id @default(cuid())
+  temuanId  String
+  uraian    String
+  olehId    String
+  status    String   @default("SUBMITTED") // SUBMITTED | VERIFIED
+  createdAt DateTime @default(now())
+
+  temuan Temuan @relation(fields: [temuanId], references: [id])
+  oleh   User   @relation(fields: [olehId], references: [id])
+  fotos  Foto[]
+
+  @@index([temuanId])
+}
+
+// ---------- Audit trail ----------
+model AksiLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  aktor     String
+  aksi      String
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+}
