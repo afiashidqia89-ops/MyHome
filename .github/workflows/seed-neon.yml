@@ -1,0 +1,84 @@
+# ============================================================
+# RumahLayak — Isi database Neon (buat tabel + tanam data demo)
+#
+# Jalankan lewat tab Actions → "Isi data Neon" → Run workflow.
+#
+# WAJIB (sekali): Settings → Secrets and variables → Actions →
+#   tab Secrets → New repository secret:
+#     Nama  : NEON_URL
+#     Nilai : connection string Neon, format:
+#             postgresql://user:pass@ep-xxx.ap-southeast-1.aws.neon.tech/rumahlayak?sslmode=require
+#   (pakai host LANGSUNG / tanpa akhiran -pooler)
+#
+# Yang dilakukan:
+#   1. Membuat SEMUA tabel di Neon (prisma db push)
+#   2. Menanam data demo: struktur estate/kebun/afdeling/9 perumahan,
+#      9 pengguna (budi/fauzi/hendra & lainnya, sandi demo123),
+#      4 kartu + 27 item checklist, 4 matriks approval,
+#      10 inspeksi (periode November 2026), 7 temuan TND-001..007
+#      + tindak lanjut, log aktivitas.
+#
+# PERINGATAN: seed MENGHAPUS semua data lama di Neon sebelum menanam.
+# Jalankan ulang kapan pun ingin kembali ke kondisi demo awal.
+# ============================================================
+
+name: Isi data Neon
+
+on:
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: seed-neon
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    name: Buat tabel + seed data demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Ambil kode
+        uses: actions/checkout@v4
+
+      - name: Pasang Bun (runtime skrip seed)
+        uses: oven-sh/setup-bun@v2
+
+      - name: Instal dependensi
+        run: npm install --no-audit --no-fund
+
+      - name: Validasi secret NEON_URL
+        env:
+          NEON_URL: ${{ secrets.NEON_URL }}
+        run: |
+          if [ -z "${NEON_URL}" ]; then
+            echo "::error::Secret NEON_URL belum diisi."
+            echo "Isi di Settings → Secrets and variables → Actions → tab Secrets → New repository secret:"
+            echo "  Name : NEON_URL"
+            echo "  Value: postgresql://user:pass@ep-xxx...neon.tech/rumahlayak?sslmode=require"
+            exit 1
+          fi
+          # Tampilkan hanya host (bukan sandi) untuk konfirmasi target
+          echo "Target database: $(echo "$NEON_URL" | sed -E 's|postgresql://[^@/]+@|postgresql://***@|')"
+
+      - name: Buat tabel & tanam data demo ke Neon
+        env:
+          NEON_URL: ${{ secrets.NEON_URL }}
+        run: bash scripts/deploy/neon-sync.sh "$NEON_URL" --seed
+
+      - name: Ringkasan hasil
+        run: |
+          {
+            echo "### Seed Neon selesai"
+            echo ""
+            echo "Database Neon berisi data demo:"
+            echo "- 9 pengguna (sandi semua: \`demo123\`) — auditor **budi**, auditee **fauzi**, admin **hendra**"
+            echo "- Struktur estate / kebun / afdeling / 9 perumahan"
+            echo "- 4 kartu Kamishibai + 27 item checklist + 4 matriks approval"
+            echo "- 10 inspeksi (periode November 2026)"
+            echo "- 7 temuan (TND-001..007) + tindak lanjut"
+            echo ""
+            echo "Langkah berikutnya: pasang **DATABASE_URL** (connection string yang sama)"
+            echo "dan **AUTH_SECRET** di Vercel, lalu Deploy (lihat DEPLOY.md bab 4–5)."
+          } >> "$GITHUB_STEP_SUMMARY"
