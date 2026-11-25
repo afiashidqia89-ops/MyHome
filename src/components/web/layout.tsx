@@ -3,7 +3,7 @@ import { useStore } from "@/lib/store";
 import { ringkasBinding } from "@/lib/utils-rl";
 import { LogoMark } from "@/components/mobile/screens-core";
 import { cn } from "@/lib/utils";
-import { BookOpenText, ClipboardList, LayoutDashboard, MapPinned, Table2, UserPlus } from "lucide-react";
+import { ClipboardCheck, ClipboardList, LayoutDashboard, MapPinned, Settings, Table2, UserPlus } from "lucide-react";
 import type { WebPage } from "@/lib/types";
 
 // ---------- Menu web per peran (fungsi & kebutuhan masing-masing) ----------
@@ -11,11 +11,12 @@ import type { WebPage } from "@/lib/types";
 // bukanAuditee : disembunyikan dari AUDITEE (alat perencanaan inspeksi auditor)
 const MENU: { id: WebPage; label: string; icon: React.ReactNode; desc: string; descAuditee?: string; adminOnly?: boolean; bukanAuditee?: boolean }[] = [
   { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" />, desc: "Ringkasan kinerja kelayakan", descAuditee: "Tugas tindak lanjut saya" },
+  { id: "detail", label: "Detail Pemeriksaan", icon: <ClipboardCheck className="h-4 w-4" />, desc: "Rincian hasil inspeksi & status perbaikan" },
   { id: "rekap", label: "Rekap Report", icon: <ClipboardList className="h-4 w-4" />, desc: "Papan Rekap Kamishibai" },
   { id: "peta", label: "Peta Lokasi", icon: <MapPinned className="h-4 w-4" />, desc: "Sebaran titik pemeriksaan GPS", bukanAuditee: true },
   { id: "master", label: "Data Master", icon: <Table2 className="h-4 w-4" />, desc: "Kelola estate, kebun, afdeling & perumahan", adminOnly: true },
   { id: "users", label: "Pendaftaran User", icon: <UserPlus className="h-4 w-4" />, desc: "Kelola akses & binding kebun", adminOnly: true },
-  { id: "docs", label: "Dokumentasi Teknis", icon: <BookOpenText className="h-4 w-4" />, desc: "Skema DB, API, sync, deploy" },
+  { id: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" />, desc: "Profil, ganti sandi & info aplikasi" },
 ];
 
 export function menuWebPerPeran(role: string | undefined) {
