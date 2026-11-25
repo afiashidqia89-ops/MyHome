@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
-import { api, apiUrl, clearToken, getServerUrl, normalisasiServerUrl, setServerUrl, setToken } from "@/lib/api";
+import { api, apiUrl, clearToken, getServerUrl, normalisasiServerUrl, setServerUrl, setToken, unduhExport } from "@/lib/api";
 import { bacaMasterCache, hapusMasterCache, simpanMasterCache } from "@/lib/master-cache";
 import type { MasterCache } from "@/lib/master-cache";
 import { autoSinkron, bacaSinkronTerakhir, hitungAntrean, simpanAkun, sinkronAntrean, verifikasiAkunOffline } from "@/lib/offline";
@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { CheckCircle2, Database, Download, ExternalLink, HardDriveDownload, Loader2, LockKeyhole, LogOut, MapPin, RefreshCw, Server, Settings, Trash2, Upload, Wifi, X, ArrowRight } from "lucide-react";
+import { CheckCircle2, Database, Download, ExternalLink, FileJson, FileSpreadsheet, HardDriveDownload, Loader2, LockKeyhole, LogOut, MapPin, RefreshCw, Server, Settings, Trash2, Upload, Wifi, X, ArrowRight } from "lucide-react";
 import { ScreenHeader, layarAwal } from "@/components/mobile/frame";
 import type { SessionUser } from "@/lib/types";
 
@@ -417,14 +417,44 @@ export function PengaturanPerangkat({ onTutup }: { onTutup: () => void }) {
 
 // ============ PROFIL ============
 export function ProfileScreen() {
-  const { session, setMobileScreen } = useStore();
+  const { session, master, setMobileScreen } = useStore();
   const refresh = useRefresh();
+  const qc = useQueryClient();
   const [cekKoneksi, setCekKoneksi] = useState<"idle" | "cek" | "ok" | "gagal">("idle");
   const [serverInfo, setServerInfo] = useState<string>("");
   const [antre, setAntre] = useState(0);
   const [sinkronJalan, setSinkronJalan] = useState(false);
+  const [mUnduh, setMUnduh] = useState(false);
   useEffect(() => setAntre(hitungAntrean()), []);
   if (!session) return null;
+
+  // ---------- DATA & EKSPOR (dipindah dari tab "Data" yang lama — menu diringkas) ----------
+  const eksporXlsx = async () => {
+    try {
+      await unduhExport("/api/export/xlsx", `RumahLayak_Kamishibai_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success("File XLSX diunduh (4 sheet: Papan, Riwayat, Temuan, Pengguna)");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+  const eksporJson = async () => {
+    try {
+      await unduhExport("/api/export/json", `RumahLayak_data_${new Date().toISOString().slice(0, 10)}.json`);
+      toast.success("File JSON (paket sync) diunduh dari server");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+  const unduhMaster = async () => {
+    setMUnduh(true);
+    try {
+      await qc.invalidateQueries({ queryKey: qk.master });
+      await qc.refetchQueries({ queryKey: qk.master });
+      toast.success(`Master data terbaru terunduh (${master?.checklist.length ?? 27} item • ${master?.baraks.length ?? 9} perumahan • ${master?.afdelings.length ?? 4} afdeling • ${master?.users.length ?? 8} user)`);
+    } finally {
+      setMUnduh(false);
+    }
+  };
 
   const sinkron = async () => {
     setSinkronJalan(true);
@@ -501,6 +531,28 @@ export function ProfileScreen() {
           <Button onClick={sinkron} disabled={sinkronJalan} className="mt-2 h-9 w-full bg-forest text-[11.5px] font-bold hover:bg-forest-deep">
             {sinkronJalan ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />} Sinkron Sekarang
           </Button>
+        </div>
+
+        <div className="mt-3 rounded-xl border bg-white p-3">
+          <p className="text-[11px] font-bold text-slate-500">DATA &amp; EKSPOR</p>
+          <p className="mt-1 text-[10.5px] text-slate-500">Ekspor dibangun di server dari database — konsisten dengan papan web.</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <Button onClick={eksporXlsx} variant="outline" className="h-10 border-forest text-[11.5px] font-semibold text-forest hover:bg-forest-soft">
+              <FileSpreadsheet className="mr-1 h-4 w-4" /> Export XLSX
+            </Button>
+            <Button onClick={eksporJson} variant="outline" className="h-10 border-forest text-[11.5px] font-semibold text-forest hover:bg-forest-soft">
+              <FileJson className="mr-1 h-4 w-4" /> Export JSON
+            </Button>
+          </div>
+          <Button onClick={unduhMaster} disabled={mUnduh} className="mt-2 h-10 w-full bg-gold text-[12px] font-bold text-forest-deep hover:bg-gold-deep hover:text-white">
+            {mUnduh ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Mengunduh...</> : <><Download className="mr-1.5 h-4 w-4" /> Unduh Master Data Terbaru</>}
+          </Button>
+          <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] text-slate-600">
+            <span className="rounded bg-slate-50 px-2 py-1">Checklist: {master?.kartu.length ?? 4} kartu / {master?.checklist.length ?? 27} item</span>
+            <span className="rounded bg-slate-50 px-2 py-1">Perumahan: {master?.baraks.length ?? 0} lokasi</span>
+            <span className="rounded bg-slate-50 px-2 py-1">Afdeling: {master?.afdelings.length ?? 0}</span>
+            <span className="rounded bg-slate-50 px-2 py-1">Kebun: {master?.kebuns.length ?? 0} • Estate: {master?.estates.length ?? 0}</span>
+          </div>
         </div>
 
         <div className="mt-3 rounded-xl border bg-white p-3">
