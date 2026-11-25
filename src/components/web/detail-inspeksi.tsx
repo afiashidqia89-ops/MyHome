@@ -9,22 +9,33 @@
 //  • Filter: Estate/Area → Kebun → Afdeling (sesuai binding akun)
 //  • Filter rentang tanggal + pencarian
 //  • Paginasi maksimal 10 baris per lembar
+//  • ADMIN: hapus pemeriksaan — centang beberapa baris sekaligus
+//    (fitur ceklist sama seperti Rekap Report)
 // ============================================================
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useStore, namaAfdeling, namaBarak, labelItem } from "@/lib/store";
 import { fmtTanggal, fmtTanggalWaktu, kartuStatusDenganPerbaikan } from "@/lib/utils-rl";
 import { ChipStatus, LevelBadge, StatusTemuanBadge, SlaInfo } from "@/components/rl-bits";
-import { useInspeksi, useTemuan } from "@/lib/queries";
+import { useInspeksi, useTemuan, qk } from "@/lib/queries";
+import { api } from "@/lib/api";
 import { FilterWilayah, FilterTanggal, NavigasiHalaman, lolosFilterTanggal, potongHalaman } from "@/components/web/filter-bar";
 import type { FilterWilayahValue, FilterTanggalValue } from "@/components/web/filter-bar";
 import type { Finding, Foto, Inspection } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { Camera, CheckCircle2, ChevronDown, ChevronUp, CircleDot, Loader2, MapPin, Search, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Camera, CheckCircle2, ChevronDown, ChevronUp, CircleDot, Loader2, MapPin, Search } from "lucide-react";
 
 export function WebDetailPemeriksaan() {
-  const { master } = useStore();
+  const qc = useQueryClient();
+  const { master, session } = useStore();
   const { data: inspections = [], isLoading } = useInspeksi(true);
   const { data: findings = [] } = useTemuan(true);
 
@@ -33,6 +44,9 @@ export function WebDetailPemeriksaan() {
   const [cari, setCari] = useState("");
   const [halaman, setHalaman] = useState(1);
   const [bukaId, setBukaId] = useState<string | null>(null);
+  const [terpilih, setTerpilih] = useState<Set<string>>(new Set());
+  const [menghapus, setMenghapus] = useState(false);
+  const admin = session?.role === "ADMIN";
 
   useEffect(() => setHalaman(1), [wilayah, tanggal, cari]);
 
@@ -62,6 +76,48 @@ export function WebDetailPemeriksaan() {
 
   const { bagian, total, totalHalaman, mulai, akhir } = potongHalaman(terfilter, halaman, 10);
 
+  // ---------- Hapus multi-centang (ADMIN) — sama seperti Rekap Report ----------
+  const togglePilih = (id: string) => {
+    setTerpilih((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  };
+  const semuaTerpilih = bagian.length > 0 && bagian.every((i) => terpilih.has(i.id));
+  const pilihSemuaHalaman = () => {
+    setTerpilih((s) => {
+      const n = new Set(s);
+      if (semuaTerpilih) bagian.forEach((i) => n.delete(i.id));
+      else bagian.forEach((i) => n.add(i.id));
+      return n;
+    });
+  };
+  const hapusTerpilih = async () => {
+    if (terpilih.size === 0) return;
+    setMenghapus(true);
+    let ok = 0;
+    let gagal = 0;
+    for (const id of terpilih) {
+      try {
+        await api.del(`/api/inspeksi/${id}`);
+        ok++;
+      } catch {
+        gagal++;
+      }
+    }
+    setMenghapus(false);
+    setTerpilih(new Set());
+    setBukaId(null);
+    qc.invalidateQueries({ queryKey: qk.inspeksi });
+    qc.invalidateQueries({ queryKey: qk.temuan });
+    qc.invalidateQueries({ queryKey: qk.aktivitas });
+    qc.invalidateQueries({ queryKey: qk.master });
+    if (gagal === 0) toast.success(`${ok} pemeriksaan berhasil dihapus (beserta temuan & tindak lanjutnya)`);
+    else toast.warning(`${ok} dihapus, ${gagal} gagal — coba segarkan halaman`);
+  };
+
   return (
     <div className="space-y-4">
       {/* Filter wilayah + tanggal */}
@@ -79,10 +135,42 @@ export function WebDetailPemeriksaan() {
         </p>
       </div>
 
+      {/* Bar aksi hapus (ADMIN) — tampil saat ada baris dicentang */}
+      {admin && terpilih.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-3">
+          <span className="text-[12px] font-bold text-red-800">{terpilih.size} pemeriksaan dicentang</span>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button disabled={menghapus} className="h-8 bg-red-600 text-[11.5px] font-bold hover:bg-red-700">
+                {menghapus ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Menghapus…</> : <><Trash2 className="mr-1.5 h-3.5 w-3.5" /> Hapus terpilih</>}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Hapus {terpilih.size} pemeriksaan?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Seluruh data pemeriksaan terpilih dihapus permanen — termasuk hasil item, foto tergeotag, temuan, dan tindak lanjutnya. Aksi ini tidak bisa dibatalkan.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={hapusTerpilih} className="bg-red-600 hover:bg-red-700">Ya, hapus permanen</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button variant="outline" onClick={() => setTerpilih(new Set())} className="h-8 text-[11.5px]">Batal pilih semua</Button>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
         <table className="w-full min-w-[980px] border-collapse text-[12px]">
           <thead>
             <tr className="bg-forest text-white">
+              {admin && (
+                <th className="w-9 px-2 py-2.5 text-center font-bold">
+                  <Checkbox checked={semuaTerpilih} onCheckedChange={pilihSemuaHalaman} aria-label="Pilih semua di lembar ini" className="border-white data-[state=checked]:border-white data-[state=checked]:bg-white data-[state=checked]:text-forest" />
+                </th>
+              )}
               <th className="px-3 py-2.5 text-left font-bold">Tanggal</th>
               <th className="px-2 py-2.5 text-left font-bold">Kode</th>
               <th className="px-2 py-2.5 text-center font-bold">W</th>
@@ -98,13 +186,13 @@ export function WebDetailPemeriksaan() {
           </thead>
           <tbody>
             {isLoading && (
-              <tr><td colSpan={11} className="px-3 py-8 text-center text-slate-400"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
+              <tr><td colSpan={admin ? 12 : 11} className="px-3 py-8 text-center text-slate-400"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
             )}
             {!isLoading && bagian.length === 0 && (
-              <tr><td colSpan={11} className="px-3 py-8 text-center text-[12px] text-slate-400">Tidak ada pemeriksaan yang cocok dengan filter.</td></tr>
+              <tr><td colSpan={admin ? 12 : 11} className="px-3 py-8 text-center text-[12px] text-slate-400">Tidak ada pemeriksaan yang cocok dengan filter.</td></tr>
             )}
             {bagian.map((i, idx) => (
-              <BarisPemeriksaan key={i.id} insp={i} idx={idx} findings={findings} terbuka={bukaId === i.id} onToggle={() => setBukaId(bukaId === i.id ? null : i.id)} />
+              <BarisPemeriksaan key={i.id} insp={i} idx={idx} findings={findings} admin={admin} dipilih={terpilih.has(i.id)} onPilih={() => togglePilih(i.id)} terbuka={bukaId === i.id} onToggle={() => setBukaId(bukaId === i.id ? null : i.id)} />
             ))}
           </tbody>
         </table>
@@ -115,10 +203,13 @@ export function WebDetailPemeriksaan() {
 }
 
 // ---------- Satu baris pemeriksaan + panel detail yang bisa dibuka ----------
-function BarisPemeriksaan({ insp, idx, findings, terbuka, onToggle }: {
+function BarisPemeriksaan({ insp, idx, findings, admin, dipilih, onPilih, terbuka, onToggle }: {
   insp: Inspection;
   idx: number;
   findings: Finding[];
+  admin: boolean;
+  dipilih: boolean;
+  onPilih: () => void;
   terbuka: boolean;
   onToggle: () => void;
 }) {
@@ -136,7 +227,12 @@ function BarisPemeriksaan({ insp, idx, findings, terbuka, onToggle }: {
 
   return (
     <>
-      <tr className={cn("border-t border-slate-100", idx % 2 === 1 && "bg-slate-50/60", terbuka && "bg-forest-soft/60")}>
+      <tr className={cn("border-t border-slate-100", idx % 2 === 1 && "bg-slate-50/60", dipilih && "bg-red-50/70", terbuka && "bg-forest-soft/60")}>
+        {admin && (
+          <td className="px-2 py-2 text-center">
+            <Checkbox checked={dipilih} onCheckedChange={onPilih} aria-label={`Pilih ${insp.kode}`} />
+          </td>
+        )}
         <td className="px-3 py-2 text-slate-600">{fmtTanggal(insp.tanggal)}</td>
         <td className="px-2 py-2 font-bold text-slate-700">{insp.kode}</td>
         <td className="px-2 py-2 text-center text-slate-500">W{insp.minggu}</td>
@@ -167,7 +263,7 @@ function BarisPemeriksaan({ insp, idx, findings, terbuka, onToggle }: {
       </tr>
       {terbuka && (
         <tr className="border-t border-forest/20 bg-forest-soft/30">
-          <td colSpan={11} className="px-4 py-4">
+          <td colSpan={admin ? 12 : 11} className="px-4 py-4">
             <PanelDetail insp={insp} findings={findings} />
           </td>
         </tr>
