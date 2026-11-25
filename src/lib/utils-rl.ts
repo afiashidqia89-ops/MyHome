@@ -1,7 +1,6 @@
 "use client";
 import type { Finding, Inspection, StatusNilai } from "./types";
 import { KARTU } from "./data";
-
 // ---------- Format ----------
 export function fmtTanggal(iso?: string) {
   if (!iso) return "-";
@@ -45,6 +44,23 @@ export function kartuStatus(insp: Inspection, kartuId: string): StatusNilai | "-
   if (!items.length || items.every((r) => r.status === null)) return "-";
   return items.some((r) => r.status === "M") ? "M" : "H";
 }
+
+/**
+ * Overlay status perbaikan (Langkah 4 Guideline): bila kartu MERAH karena temuan
+ * dan SEMUA temuan pada kartu itu sudah ditutup auditee + diverifikasi auditor
+ * (status CLOSED), kartu kembali HIJAU di Papan Rekap & Detail Pemeriksaan.
+ * Return: st = status kartu akhir, perbaikanSelesai = hijau hasil perbaikan (bukan hijau asli).
+ */
+export function kartuStatusDenganPerbaikan(insp: Inspection, kartuId: string, findings: Finding[]): { st: StatusNilai | "-"; perbaikanSelesai: boolean } {
+  const st = kartuStatus(insp, kartuId);
+  if (st !== "M") return { st, perbaikanSelesai: false };
+  const prefix = kartuPrefix[kartuId] ?? "A";
+  const rel = findings.filter((f) => f.inspectionId === insp.id && f.itemId.startsWith(prefix));
+  if (rel.length > 0 && rel.every((f) => f.status === "CLOSED")) {
+    return { st: "H", perbaikanSelesai: true };
+  }
+  return { st, perbaikanSelesai: false };
+}
 const kartuIdByPrefix: Record<string, string> = { A: "KMS-01", B: "KMS-02", C: "KMS-03", D: "KMS-04" };
 export function prefixKartu(itemId: string) {
   return kartuIdByPrefix[itemId[0]] ?? "KMS-01";
@@ -60,24 +76,30 @@ export interface PapanRow {
   barak: string;
   afdeling: string;
   status: Record<string, StatusNilai | "-">;
+  /** kartu yang kembali hijau karena seluruh temuan sudah ditutup (overlay perbaikan) */
+  perbaikanSelesai: Record<string, boolean>;
   h: number;
   m: number;
   pct: number | null;
   fokus: string;
 }
 
-export function hitungPapan(inspections: Inspection[], namaAuditor: (id: string) => string, namaBarak: (id: string) => string, namaAfd: (id: string) => string, periode = "November 2026"): PapanRow[] {
+export function hitungPapan(inspections: Inspection[], namaAuditor: (id: string) => string, namaBarak: (id: string) => string, namaAfd: (id: string) => string, periode = "November 2026", findings?: Finding[]): PapanRow[] {
   return inspections
     .filter((i) => i.periode === periode)
     .sort((a, b) => a.minggu - b.minggu || a.kode.localeCompare(b.kode))
     .map((i) => {
       const status: Record<string, StatusNilai | "-"> = {};
+      const perbaikanSelesai: Record<string, boolean> = {};
       let h = 0;
       let m = 0;
       let kosong = 0;
       KARTU.forEach((k) => {
-        const st = kartuStatus(i, k.id);
+        const { st, perbaikanSelesai: selesai } = findings
+          ? kartuStatusDenganPerbaikan(i, k.id, findings)
+          : { st: kartuStatus(i, k.id), perbaikanSelesai: false };
         status[k.id] = st;
+        perbaikanSelesai[k.id] = selesai;
         if (st === "H") h++;
         else if (st === "M") m++;
         else kosong++;
@@ -92,6 +114,7 @@ export function hitungPapan(inspections: Inspection[], namaAuditor: (id: string)
         barak: namaBarak(i.barakId),
         afdeling: namaAfd(i.afdelingId),
         status,
+        perbaikanSelesai,
         h,
         m,
         pct: dinilai ? Math.round((h / dinilai) * 1000) / 10 : null,
