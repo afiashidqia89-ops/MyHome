@@ -17,7 +17,7 @@ export type MobileScreen =
   | "guideline"
   | "profile";
 
-export type WebPage = "dashboard" | "rekap" | "peta" | "master" | "users" | "docs";
+export type WebPage = "dashboard" | "detail" | "rekap" | "peta" | "master" | "users" | "pengaturan";
 
 export type StatusNilai = "H" | "M"; // Hijau (Layak) / Merah (Tidak Layak)
 
