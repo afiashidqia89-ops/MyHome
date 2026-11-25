@@ -139,6 +139,9 @@ async function request<T>(metode: string, path: string, body?: unknown, init?: R
       // Cookie hanya dipakai portal web satu origin; lintas origin (Set IP) pakai Bearer.
       credentials: urlApi(path).startsWith("http") ? "omit" : "include",
       headers: { "Content-Type": "application/json", ...authHeaders(), ...(init?.headers ?? {}) },
+      // WAJIB: kirim isi pesan (POST/PATCH) sebagai JSON — tanpa baris ini
+      // server menerima body kosong → "Format permintaan tidak valid".
+      body: body === undefined ? undefined : JSON.stringify(body),
       cache: "no-store",
     });
   } catch {
