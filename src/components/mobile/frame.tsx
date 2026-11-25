@@ -1,7 +1,7 @@
 "use client";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { BookOpen, ClipboardCheck, Database, Flag, MapPinned, User, Wrench } from "lucide-react";
+import { ClipboardCheck, Flag, MapPinned, User, Wrench } from "lucide-react";
 import type { MobileScreen, Role } from "@/lib/types";
 
 export function PhoneFrame({ children }: { children: React.ReactNode }) {
@@ -29,31 +29,30 @@ export function PhoneFrame({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ---------- Menu bawah per peran (fungsi & kebutuhan masing-masing) ----------
-// Tanpa "Beranda": setelah login pengguna langsung dibawa ke layar kerja utamanya.
-// AUDITOR: menu Pemeriksaan = pintasan langsung ke inspeksi 27 item (peran eksklusif auditor).
+// ---------- Menu bawah per peran (DIRINGKAS — fitur digabung secara proper) ----------
+// Gabungan:
+//   • Temuan + Riwayat → satu tab "Temuan" (segmen TEMUAN / RIWAYAT di dalamnya)
+//   • Data (master, ekspor XLSX/JSON) → bagian "DATA & EKSPOR" di layar Profil
+//   • QR demo dihapus (bukan fitur nyata) — perumahan dipilih langsung dari daftar
+// Tanpa "Beranda" terpisah: layar pertama sesuai peran = beranda (tombol back HP
+// mengembalikan ke layar tersebut).
 const NAV_AUDITOR: { id: MobileScreen; label: string; icon: React.ReactNode }[] = [
-  { id: "inspect-new", label: "Pemeriksaan", icon: <ClipboardCheck className="h-4 w-4" /> },
+  { id: "inspect-new", label: "Periksa", icon: <ClipboardCheck className="h-4 w-4" /> },
   { id: "peta", label: "Peta", icon: <MapPinned className="h-4 w-4" /> },
   { id: "findings", label: "Temuan", icon: <Flag className="h-4 w-4" /> },
-  { id: "history", label: "Riwayat", icon: <BookOpen className="h-4 w-4" /> },
-  { id: "data", label: "Data", icon: <Database className="h-4 w-4" /> },
   { id: "profile", label: "Profil", icon: <User className="h-4 w-4" /> },
 ];
 
-// AUDITEE: fokus tindak lanjut temuan — tanpa Peta (alat inspeksi) & Data (ekspor), plus Panduan
+// AUDITEE: fokus tindak lanjut temuan — tanpa Peta (alat inspeksi) & Data (ekspor)
 const NAV_AUDITEE: { id: MobileScreen; label: string; icon: React.ReactNode }[] = [
   { id: "findings", label: "Temuan", icon: <Flag className="h-4 w-4" /> },
-  { id: "history", label: "Riwayat", icon: <BookOpen className="h-4 w-4" /> },
   { id: "guideline", label: "Panduan", icon: <Wrench className="h-4 w-4" /> },
   { id: "profile", label: "Profil", icon: <User className="h-4 w-4" /> },
 ];
 
-// ADMIN: pemantauan corporate — tanpa Peta lapangan, tetap punya Data & ekspor
+// ADMIN: pemantauan corporate — 2 tab saja (admin memakai portal web)
 const NAV_ADMIN: { id: MobileScreen; label: string; icon: React.ReactNode }[] = [
   { id: "findings", label: "Temuan", icon: <Flag className="h-4 w-4" /> },
-  { id: "history", label: "Riwayat", icon: <BookOpen className="h-4 w-4" /> },
-  { id: "data", label: "Data", icon: <Database className="h-4 w-4" /> },
   { id: "profile", label: "Profil", icon: <User className="h-4 w-4" /> },
 ];
 

@@ -7,8 +7,8 @@ import { api, setToken } from "@/lib/api";
 import { BottomNav, layarAwal } from "@/components/mobile/frame";
 import { LoginScreen, ProfileScreen, LogoMark } from "@/components/mobile/screens-core";
 import { InspectNewScreen, InspectScreen, InspectItemScreen } from "@/components/mobile/screens-inspect";
-import { FindingsScreen, FindingDetailScreen, HistoryScreen } from "@/components/mobile/screens-findings";
-import { DataScreen, GuidelineScreen } from "@/components/mobile/screens-data";
+import { FindingsScreen, FindingDetailScreen } from "@/components/mobile/screens-findings";
+import { GuidelineScreen } from "@/components/mobile/screens-data";
 import { PetaBlokScreen } from "@/components/mobile/screens-peta";
 import { WebLayout, menuWebPerPeran } from "@/components/web/layout";
 import { WebDashboard } from "@/components/web/dashboard";
@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import type { SessionUser } from "@/lib/types";
+import type { MobileScreen } from "@/lib/types";
 import { autoSinkron, hitungAntrean } from "@/lib/offline";
 
 const queryClient = new QueryClient({
@@ -43,8 +44,10 @@ function MobileApp() {
     case "inspect-item": screen = <InspectItemScreen />; break;
     case "findings": screen = <FindingsScreen />; break;
     case "finding-detail": screen = <FindingDetailScreen />; break;
-    case "history": screen = <HistoryScreen />; break;
-    case "data": screen = <DataScreen />; break;
+    // Riwayat = segmen di dalam layar Temuan; Data = bagian di layar Profil
+    // (konsolidasi menu — layar lama tetap bisa dibuka lewat rute ini).
+    case "history": screen = <FindingsScreen tabAwal="riwayat" />; break;
+    case "data": screen = <ProfileScreen />; break;
     case "guideline": screen = <GuidelineScreen />; break;
     case "profile": screen = <ProfileScreen />; break;
     default: screen = layarAwal(session.role) === "peta" ? <PetaBlokScreen /> : <FindingsScreen />;
@@ -135,6 +138,18 @@ function useQueryClientSafe() {
 // Hindari auto-sinkron berulang tiap render: sekali per 30 detik maksimal
 let WAKTU_AUTO_SINKRON = 0;
 
+// ---- Tombol BACK Android (Capacitor App) ----
+// TIDAK langsung keluar: back memundurkan layar bertahap, di luar alur
+// inspeksi langsung ke BERANDA peran (auditor: Peta, auditee/admin: Temuan).
+// Sudah di beranda → tekan 2x (toast penanda) baru keluar.
+let WAKTU_BACK_TERAKHIR = 0;
+
+const TURUN_SATU: Partial<Record<MobileScreen, MobileScreen>> = {
+  "inspect-item": "inspect",
+  "inspect": "inspect-new",
+  "finding-detail": "findings",
+};
+
 function AppRoot() {
   const { mode, session, setSession, setMobileScreen, master } = useStore();
   const { data: sess, isLoading: sessLoading } = useSession();
@@ -177,6 +192,45 @@ function AppRoot() {
     const diApk = typeof window !== "undefined" && "Capacitor" in window;
     const layarSempit = typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 767px)").matches;
     useStore.getState().setMode(diApk || layarSempit ? "mobile" : "web");
+  }, []);
+
+  // Tombol BACK perangkat (APK): mundur bertahap / ke beranda, bukan keluar.
+  // Hanya aktif di dalam APK — di browser perilaku back default dibiarkan.
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Capacitor" in window)) return;
+    let hancur = false;
+    let sub: { remove: () => Promise<void> } | null = null;
+    void (async () => {
+      try {
+        const { App } = await import("@capacitor/app");
+        const listener = await App.addListener("backButton", () => {
+          const s = useStore.getState();
+          const beranda = layarAwal(s.session?.role);
+          const skr = s.mobileScreen;
+          if (skr === "login" || skr === beranda) {
+            // Sudah di beranda → 2x tekan dalam 2,2 detik untuk keluar
+            const kini = Date.now();
+            if (kini - WAKTU_BACK_TERAKHIR < 2200) {
+              void App.exitApp();
+            } else {
+              WAKTU_BACK_TERAKHIR = kini;
+              toast.info("Tekan tombol back sekali lagi untuk keluar aplikasi");
+            }
+            return;
+          }
+          // Mundur satu langkah di alur inspeksi/temuan; di luar itu → beranda.
+          s.setMobileScreen(TURUN_SATU[skr] ?? beranda);
+        });
+        if (hancur) void listener.remove();
+        else sub = listener;
+      } catch {
+        /* plugin tidak tersedia — abaikan */
+      }
+    })();
+    return () => {
+      hancur = true;
+      void sub?.remove?.();
+    };
   }, []);
 
   if (sessLoading) {
