@@ -70,3 +70,4 @@ prisma/schema.postgres.prisma
 /tests/
 /Caddyfile
 .pgtest/
+.tmp/
