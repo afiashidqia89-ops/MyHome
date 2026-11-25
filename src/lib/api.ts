@@ -1,84 +1,48 @@
 // ============================================================
-// RumahLayak — Klien REST (token Bearer + cookie httpOnly)
-// Token disimpan di localStorage sehingga sesi tetap hidup di
-// dalam iframe preview (cookie lintas-situs diblokir browser)
-// dan di WebView Capacitor nantinya.
+// RumahLayak — Klien REST offline-first (token Bearer + antrean)
+//
+// Perilaku:
+//   • GET  : sukses → simpan snapshot perangkat; gagal jaringan →
+//            pelempar error status 0 (query layer memakai snapshot).
+//   • POST/PATCH/DELETE : gagal jaringan pada endpoint yang aman →
+//            masuk ANTREAN OFFLINE + respons sintetis "offline",
+//            sehingga UI tetap jalan tanpa internet.
+//   • Endpoint di luar daftar aman → error ramah "butuh koneksi".
 // ============================================================
 
-const TOKEN_KEY = "rl_token";
-const SERVER_KEY = "rl_server_url";
+import {
+  bisaAntre,
+  idBaru,
+  tambahAntrean,
+  simpanSnapshot,
+} from "./offline";
 
-export function getToken(): string | null {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage.getItem(TOKEN_KEY);
-  } catch {
-    return null;
-  }
-}
+// Re-ekspor helper server agar impor lama dari "@/lib/api" tetap jalan
+export {
+  getToken,
+  setToken,
+  clearToken,
+  getServerUrl,
+  setServerUrl,
+  normalisasiServerUrl,
+  apiUrl,
+  serverTerpasang,
+  alamatAktif,
+} from "./server";
 
-export function setToken(token: string) {
-  try {
-    window.localStorage.setItem(TOKEN_KEY, token);
-  } catch {
-    /* penyimpanan tidak tersedia — cookie masih jadi cadangan */
-  }
-}
-
-export function clearToken() {
-  try {
-    window.localStorage.removeItem(TOKEN_KEY);
-  } catch {
-    /* abaikan */
-  }
-}
-
-// ---------- Set IP (alamat server kustom dari layar login) ----------
-
-/** URL server kustom yang disimpan perangkat, atau null bila memakai server bawaan. */
-export function getServerUrl(): string | null {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage.getItem(SERVER_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function setServerUrl(url: string | null) {
-  try {
-    if (url) window.localStorage.setItem(SERVER_KEY, url);
-    else window.localStorage.removeItem(SERVER_KEY);
-  } catch {
-    /* penyimpanan tidak tersedia — abaikan */
-  }
-}
-
-/** Normalisasi input "Set IP" — terima "192.168.1.10:3000" maupun URL penuh. */
-export function normalisasiServerUrl(input: string): string | null {
-  const s = input.trim().replace(/\/+$/, "");
-  if (!s) return null;
-  const withScheme = /^https?:\/\//i.test(s) ? s : `http://${s}`;
-  try {
-    const u = new URL(withScheme);
-    if (!u.host) return null;
-    return `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, "")}`;
-  } catch {
-    return null;
-  }
-}
-
-/** Gabungkan alamat server kustom (Set IP) dengan path API. */
-export function apiUrl(path: string): string {
-  const base = getServerUrl();
-  return base ? `${base}${path}` : path;
-}
+import { apiUrl as urlApi, getToken, serverTerpasang } from "./server";
 
 export class ApiError extends Error {
-  status: number;
+  status: number; // 0 = jaringan offline / server tak terjangkau
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
   }
 }
+
+export const EROR_JARINGAN = "Tidak dapat menghubungi server — periksa koneksi internet / alamat IP (Set IP).";
+export const EROR_SERVER_BELUM_DIATUR =
+  "Alamat server belum diatur — buka Pengaturan (ikon gerigi) di layar awal, isi kolom SET IP dengan alamat server perusahaan.";
 
 function authHeaders(): Record<string, string> {
   const token = getToken();
@@ -87,47 +51,145 @@ function authHeaders(): Record<string, string> {
 
 async function proses<T>(res: Response): Promise<T> {
   const text = await res.text();
-  const body = text ? JSON.parse(text) : {};
+  let body: Record<string, unknown> = {};
+  if (text) {
+    try {
+      body = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      throw new ApiError(res.status, `Respons server tidak valid (${res.status})`);
+    }
+  }
   if (!res.ok) {
-    if (res.status === 401) clearToken(); // sesi kedaluwarsa/invalid — bersihkan token lokal
-    throw new ApiError(res.status, body.error ?? `Kesalahan server (${res.status})`);
+    if (res.status === 401) clearTokenLokal(); // sesi kedaluwarsa — bersihkan token lokal
+    throw new ApiError(res.status, (body.error as string) ?? `Kesalahan server (${res.status})`);
   }
   return body as T;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(apiUrl(path), {
-    ...init,
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...(init?.headers ?? {}) },
-    cache: "no-store",
-  });
+function clearTokenLokal() {
+  try {
+    window.localStorage.removeItem("rl_token");
+  } catch {
+    /* abaikan */
+  }
+}
+
+/** Label manusiawi untuk entri antrean. */
+function labelOp(metode: string, path: string, body?: unknown): string {
+  if (metode === "POST" && /\/api\/inspeksi/.test(path)) return "Pemeriksaan baru";
+  if (metode === "DELETE" && /\/api\/inspeksi\//.test(path)) return "Hapus pemeriksaan";
+  if (metode === "PATCH" && /\/api\/temuan\//.test(path)) return "Perubahan status temuan";
+  if (/tindak-lanjut/.test(path)) return "Tindak lanjut temuan";
+  if (/verifikasi/.test(path)) return "Verifikasi temuan";
+  return `${metode} ${path}`;
+}
+
+/** Respons sintetis agar UI offline tetap berjalan seolah sukses. */
+function balasanOffline<T>(metode: string, path: string, body?: unknown): T {
+  if (metode === "POST" && /\/api\/inspeksi/.test(path)) {
+    const b = (body ?? {}) as {
+      results?: { status?: string }[];
+      temuan?: unknown[];
+    };
+    const kode = `OFFLINE-${new Date().toISOString().slice(2, 10).replace(/-/g, "")}-${idBaru().slice(0, 4).toUpperCase()}`;
+    const hasil = {
+      offline: true,
+      temuanDibuat: Array.isArray(b.temuan) ? b.temuan.length : 0,
+      inspeksi: {
+        id: idBaru(),
+        kode,
+        tanggal: new Date().toISOString().slice(0, 10),
+        sync: "queued" as const,
+        results: b.results ?? [],
+      },
+    };
+    // Masukkan langsung ke snapshot daftar agar terlihat di Riwayat/Rekap offline
+    const snap = simpanSnapshotHelper<{ inspeksi: Record<string, unknown>[] }>("inspeksi");
+    if (snap && Array.isArray(snap.inspeksi)) {
+      snap.inspeksi = [hasil.inspeksi, ...snap.inspeksi];
+      simpanSnapshot("inspeksi", snap);
+    }
+    return hasil as T;
+  }
+  return { offline: true } as T;
+}
+
+function simpanSnapshotHelper<T>(nama: Parameters<typeof simpanSnapshot>[0]): T | null {
+  try {
+    const raw = window.localStorage.getItem(`rl_snap_${nama}`);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function request<T>(metode: string, path: string, body?: unknown, init?: RequestInit): Promise<T> {
+  if (!serverTerpasang()) throw new ApiError(0, EROR_SERVER_BELUM_DIATUR);
+
+  const batasWaktu = metode === "GET" ? 15_000 : 60_000; // POST foto besar butuh waktu
+  const kontrol = new AbortController();
+  const timer = setTimeout(() => kontrol.abort(), batasWaktu);
+
+  let res: Response;
+  try {
+    res = await fetch(urlApi(path), {
+      ...init,
+      method: metode,
+      signal: kontrol.signal,
+      // Cookie hanya dipakai portal web satu origin; lintas origin (Set IP) pakai Bearer.
+      credentials: urlApi(path).startsWith("http") ? "omit" : "include",
+      headers: { "Content-Type": "application/json", ...authHeaders(), ...(init?.headers ?? {}) },
+      cache: "no-store",
+    });
+  } catch {
+    clearTimeout(timer);
+    // ---- JARINGAN GAGAL ----
+    if (metode !== "GET" && bisaAntre(metode, path)) {
+      const badan = metode === "POST" && /\/api\/inspeksi/.test(path)
+        ? { ...(body as Record<string, unknown>), id: idBaru() } // ID client → kirim ulang aman (idempotent)
+        : body;
+      tambahAntrean({ metode: metode as "POST" | "PATCH" | "DELETE", path, body: badan, label: labelOp(metode, path, body) });
+      return balasanOffline<T>(metode, path, badan);
+    }
+    if (metode !== "GET") throw new ApiError(0, `Butuh koneksi server untuk perintah ini. ${EROR_JARINGAN}`);
+    throw new ApiError(0, EROR_JARINGAN);
+  }
+  clearTimeout(timer);
   return proses<T>(res);
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, payload?: unknown) =>
-    request<T>(path, { method: "POST", body: payload === undefined ? undefined : JSON.stringify(payload) }),
-  patch: <T>(path: string, payload?: unknown) =>
-    request<T>(path, { method: "PATCH", body: payload === undefined ? undefined : JSON.stringify(payload) }),
-  del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
-  /** POST multipart/form-data (unggah file) — Content-Type diset browser otomatis (boundary). */
+  get: <T>(path: string) => request<T>("GET", path),
+  post: <T>(path: string, payload?: unknown) => request<T>("POST", path, payload),
+  patch: <T>(path: string, payload?: unknown) => request<T>("PATCH", path, payload),
+  del: <T>(path: string) => request<T>("DELETE", path),
+  /** POST multipart/form-data (unggah file) — hanya saat online. */
   upload: async <T>(path: string, formData: FormData): Promise<T> => {
-    const res = await fetch(apiUrl(path), {
-      method: "POST",
-      credentials: "include",
-      headers: authHeaders(),
-      body: formData,
-      cache: "no-store",
-    });
+    if (!serverTerpasang()) throw new ApiError(0, EROR_SERVER_BELUM_DIATUR);
+    let res: Response;
+    try {
+      res = await fetch(urlApi(path), {
+        method: "POST",
+        credentials: urlApi(path).startsWith("http") ? "omit" : "include",
+        headers: authHeaders(),
+        body: formData,
+        cache: "no-store",
+      });
+    } catch {
+      throw new ApiError(0, `Unggah file butuh koneksi server. ${EROR_JARINGAN}`);
+    }
     return proses<T>(res);
   },
 };
 
 /** Unduh file dari endpoint export via blob (tetap terautentikasi dengan token). */
 export async function unduhExport(path: string, namaFile: string) {
-  const res = await fetch(apiUrl(path), { credentials: "include", headers: authHeaders(), cache: "no-store" });
+  if (!serverTerpasang()) throw new ApiError(0, EROR_SERVER_BELUM_DIATUR);
+  const res = await fetch(urlApi(path), {
+    credentials: urlApi(path).startsWith("http") ? "omit" : "include",
+    headers: authHeaders(),
+    cache: "no-store",
+  });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `Gagal mengunduh (${res.status})`);

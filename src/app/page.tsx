@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import type { SessionUser } from "@/lib/types";
+import { autoSinkron, hitungAntrean } from "@/lib/offline";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
@@ -131,6 +132,9 @@ function useQueryClientSafe() {
   return queryClient;
 }
 
+// Hindari auto-sinkron berulang tiap render: sekali per 30 detik maksimal
+let WAKTU_AUTO_SINKRON = 0;
+
 function AppRoot() {
   const { mode, session, setSession, setMobileScreen, master } = useStore();
   const { data: sess, isLoading: sessLoading } = useSession();
@@ -145,6 +149,24 @@ function AppRoot() {
   useEffect(() => {
     useStore.getState().setMaster(masterData ?? null);
   }, [masterData]);
+
+  // Saat aplikasi dibuka dalam keadaan login: kirim antrean offline lalu
+  // segarkan data (diam-diam; hanya bila ada data yang menunggu)
+  useEffect(() => {
+    if (!sess?.authenticated) return;
+    const sekarang = Date.now();
+    if (sekarang - WAKTU_AUTO_SINKRON < 30_000) return;
+    WAKTU_AUTO_SINKRON = sekarang;
+    if (!hitungAntrean()) return;
+    void autoSinkron(queryClient).then((hasil) => {
+      if (hasil && hasil.kirim > 0) {
+        toast.success(`${hasil.kirim} data offline berhasil dikirim ke server`);
+        void queryClient.invalidateQueries({ queryKey: qk.inspeksi });
+        void queryClient.invalidateQueries({ queryKey: qk.temuan });
+        void queryClient.invalidateQueries({ queryKey: qk.aktivitas });
+      }
+    }).catch(() => { /* senyap — antrean tetap aman di perangkat */ });
+  }, [sess?.authenticated]);
 
   // Deteksi lingkungan sekali saat mulai:
   //   - APK (dijalankan di WebView Capacitor) → tampilan MOBILE penuh layar
