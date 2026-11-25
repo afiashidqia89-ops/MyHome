@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useStore, namaAfdeling, namaBarak } from "@/lib/store";
 import { api } from "@/lib/api";
 import { qk, useInspeksi, useRefresh } from "@/lib/queries";
-import { fmtKoor, fmtTanggal, generateFotoCanvas, namaBarakSingkat } from "@/lib/utils-rl";
+import { fmtKoor, fmtTanggal, namaBarakSingkat } from "@/lib/utils-rl";
+import { ambilFotoDenganWatermark, lokasiSaatIni } from "@/lib/perangkat";
 import { ScreenHeader } from "@/components/mobile/frame";
 import { ChipStatus } from "@/components/rl-bits";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Camera, CheckCircle2, Crosshair, Flag, ImageOff, Loader2, MapPin, QrCode, Save, ShieldAlert, Trash2, X } from "lucide-react";
+import { Camera, CheckCircle2, Crosshair, Flag, ImageOff, Loader2, MapPin, Save, ShieldAlert, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DraftTemuan } from "@/lib/types";
 
@@ -39,7 +40,6 @@ export function InspectNewScreen() {
   const [kebunId, setKebunId] = useState<string>(pre?.kebunId ?? (master?.kebuns ?? []).find((k) => k.estateId === (pre?.estateId ?? master?.estates[0]?.id))?.id ?? "");
   const [afdelingId, setAfdelingId] = useState<string>(pre?.afdelingId ?? (master?.afdelings ?? []).find((a) => a.kebunId === kebunId)?.id ?? "");
   const [barakId, setBarakId] = useState<string | null>(inspectPreselect?.barakId ?? null);
-  const [scan, setScan] = useState(false);
 
   // Bersihkan preselect saat layar ditutup — buka ulang form mulai lagi dari default.
   useEffect(
@@ -85,17 +85,6 @@ export function InspectNewScreen() {
     startDraft(barakId); // tanpa PIC kamishibai — langsung ke form penilaian
     toast.success(`Pemeriksaan dimulai — ${namaBarakSingkat(namaBarak(barakId), afdDipilih?.nama)} (27 item)`);
   };
-  const scanQr = () => {
-    if (!barakList.length) return;
-    setScan(true);
-    setTimeout(() => {
-      const b = barakList[Math.floor(Math.random() * barakList.length)];
-      setScan(false);
-      setBarakId(b.id);
-      toast.success(`QR terbaca: ${namaBarakSingkat(b.nama, afdDipilih?.nama)}`);
-    }, 1200);
-  };
-
   const labelBarak = (nama: string) => namaBarakSingkat(nama, afdDipilih?.nama);
 
   return (
@@ -135,17 +124,6 @@ export function InspectNewScreen() {
             </div>
           </div>
         </div>
-
-        <div className="mt-2 flex items-center gap-2">
-          <Button variant="outline" onClick={scanQr} className="h-9 flex-1 border-dashed text-[12px] text-forest">
-            <QrCode className="mr-1.5 h-4 w-4" /> Scan QR di Perumahan (demo)
-          </Button>
-        </div>
-        {scan && (
-          <div className="mt-2 flex h-28 items-center justify-center rounded-xl border-2 border-dashed border-gold bg-gold-soft">
-            <span className="flex items-center gap-2 text-[12px] font-semibold text-gold-deep"><Loader2 className="h-4 w-4 animate-spin" /> Memindai QR perumahan...</span>
-          </div>
-        )}
 
         <p className="mb-2 mt-4 text-[11px] font-semibold text-slate-500">PERUMAHAN YANG DIPERIKSA{afdDipilih ? "" : " — PILIH AFDELING DULU"}</p>
         <div className="space-y-2">
@@ -230,23 +208,21 @@ export function InspectScreen() {
 
   if (!session || !master || !barak) return null;
 
-  // ---------- TAG KOORDINAT (1x per pemeriksaan rumah — bukan dari foto) ----------
-  const tagKoordinat = () => {
+  // ---------- TAG KOORDINAT REAL (GPS perangkat, 1x per pemeriksaan rumah) ----------
+  // Tanpa estimasi/acakan: GPS gagal → error jelas + tombol coba lagi.
+  const tagKoordinat = async () => {
     setMenandai(true);
-    const simpanTag = (lat: number, lng: number, acc: number) => {
-      store.setDraftGps({ lat, lng, acc });
+    try {
+      const lok = await lokasiSaatIni();
+      store.setDraftGps(lok);
+      toast.success(`Koordinat GPS asli ditag — akurasi ±${lok.acc.toFixed(1)} m. Berlaku untuk semua item rumah ini.`);
+      if (lok.acc > 30) {
+        toast.warning("Akurasi rendah (>30 m) — pindah ke tempat terbuka, lalu tag ulang bila perlu.");
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
       setMenandai(false);
-      toast.success(`Koordinat ditag 1x — akurasi ±${acc.toFixed(1)} m. Berlaku untuk semua item rumah ini.`);
-    };
-    const estimasi = () => simpanTag(barak.koordinat.lat + (Math.random() - 0.5) * 0.0004, barak.koordinat.lng + (Math.random() - 0.5) * 0.0004, 4 + Math.random() * 3);
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => simpanTag(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy || 5),
-        () => estimasi(),
-        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 },
-      );
-    } else {
-      estimasi();
     }
   };
 
@@ -393,6 +369,7 @@ export function InspectItemScreen() {
   const [uraian, setUraian] = useState("");
   const [mitigasi, setMitigasi] = useState("");
   const [noWO, setNoWO] = useState("");
+  const [mengambilFoto, setMengambilFoto] = useState(false);
 
   if (!session || !master) return null;
   const item = master.checklist.find((c) => c.id === activeItemId);
@@ -409,13 +386,23 @@ export function InspectItemScreen() {
   // Koordinat = hasil TAGGING sekali di depan rumah (draft.gps) — bukan dari foto.
   const koordinat = draft.gps ?? { lat: barak.koordinat.lat, lng: barak.koordinat.lng, acc: 5 };
 
-  const ambilFoto = () => {
-    const dataUrl = generateFotoCanvas(
-      `${item.kartu} • ${item.id} ${item.label}`,
-      `${namaBarakSingkat(namaBarak(barak.id), namaAfdeling(barak.afdelingId))} • ${fmtKoor(koordinat.lat, koordinat.lng)} • ${new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
-    );
-    addDraftFoto(item.id, { id: `f-${Date.now()}`, dataUrl, lat: koordinat.lat, lng: koordinat.lng, timestamp: new Date().toISOString(), label: item.label });
-    toast.success("Foto tersimpan dengan watermark koordinat tag & waktu");
+  // FOTO ASLI dari kamera perangkat — dikompres + watermark koordinat tag & waktu.
+  const ambilFoto = async () => {
+    if (mengambilFoto) return;
+    setMengambilFoto(true);
+    try {
+      const dataUrl = await ambilFotoDenganWatermark(
+        `${item.kartu} • ${item.id} ${item.label}`,
+        `${namaBarakSingkat(namaBarak(barak.id), namaAfdeling(barak.afdelingId))} • ${fmtKoor(koordinat.lat, koordinat.lng)} • ${new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
+      );
+      addDraftFoto(item.id, { id: `f-${Date.now()}`, dataUrl, lat: koordinat.lat, lng: koordinat.lng, timestamp: new Date().toISOString(), label: item.label });
+      toast.success("Foto kamera tersimpan dengan watermark koordinat tag & waktu");
+    } catch (e) {
+      const pesan = (e as Error).message;
+      if (pesan && !/dibatalkan/i.test(pesan)) toast.error(pesan);
+    } finally {
+      setMengambilFoto(false);
+    }
   };
 
   const catatTemuan = () => {
@@ -473,8 +460,9 @@ export function InspectItemScreen() {
 
         <div className="rounded-xl border bg-white p-3">
           <p className="text-[10px] font-bold text-slate-500">FOTO PEMERIKSAAN (WAJIB UNTUK STATUS MERAH)</p>
-          <Button onClick={ambilFoto} variant="outline" className="mt-2 h-10 w-full border-dashed text-[12px] text-forest">
-            <Camera className="mr-1.5 h-4 w-4" /> Ambil Foto
+          <Button onClick={ambilFoto} disabled={mengambilFoto} variant="outline" className="mt-2 h-10 w-full border-dashed text-[12px] text-forest">
+            {mengambilFoto ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Camera className="mr-1.5 h-4 w-4" />}
+            {mengambilFoto ? "Membuka kamera..." : "Ambil Foto (Kamera)"}
           </Button>
           {r?.fotos.length ? (
             <div className="mt-2 grid grid-cols-3 gap-2">
