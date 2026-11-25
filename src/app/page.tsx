@@ -13,10 +13,11 @@ import { PetaBlokScreen } from "@/components/mobile/screens-peta";
 import { WebLayout, menuWebPerPeran } from "@/components/web/layout";
 import { WebDashboard } from "@/components/web/dashboard";
 import { WebRekap } from "@/components/web/rekap";
+import { WebDetailPemeriksaan } from "@/components/web/detail-inspeksi";
 import { WebPeta } from "@/components/web/peta";
 import { WebMaster } from "@/components/web/master";
 import { WebUsers } from "@/components/web/users";
-import { WebDocs } from "@/components/web/docs";
+import { WebPengaturan } from "@/components/web/pengaturan";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -62,11 +63,12 @@ function WebApp() {
   return (
     <WebLayout>
       {halaman === "dashboard" && <WebDashboard />}
+      {halaman === "detail" && <WebDetailPemeriksaan />}
       {halaman === "rekap" && <WebRekap />}
       {halaman === "peta" && <WebPeta />}
       {halaman === "master" && <WebMaster />}
       {halaman === "users" && <WebUsers />}
-      {halaman === "docs" && <WebDocs />}
+      {halaman === "pengaturan" && <WebPengaturan />}
     </WebLayout>
   );
 }
