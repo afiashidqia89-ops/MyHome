@@ -1,24 +1,23 @@
 # ============================================================
-# RumahLayak (MyHome) — Build APK Android otomatis + versi naik sendiri
+# RumahLayak (MyHome) — Build APK Android OTOMATIS (OFFLINE-FIRST)
 # Dipicu: tombol "Run workflow" (manual) atau push ke main yang
 # menyentuh kode aplikasi.
-# Hasil per build:
-#   - versionCode = nomor build GitHub (selalu naik → APK baru terpasang
-#     sebagai PEMBARUAN di atas versi lama, tanpa uninstall)
-#   - versionName = <mayor>.<minor>.<nomor build>, mis. 0.2.7
-#   - File RumahLayak-v<versi>-debug.apk di tab Artifacts + halaman Releases
 #
-# WAJIB (sekali): Settings → Secrets and variables → Actions →
-# tab Variables → New repository variable:
-#   Nama  : APP_SERVER_URL
-#   Nilai : https://<domain-vercel-Anda>.vercel.app
-# OPSIONAL:
+# MODEL BARU (sejak v0.3.0):
+#   APK membawa aplikasi + bundle web statis DI DALAMNYA (folder www/)
+#   → selalu bisa dibuka TANPA internet. Server (Vercel / LAN) dipakai
+#   untuk login + sinkronisasi; alamatnya diatur di aplikasi lewat
+#   ikon gear (Set IP) — TIDAK PERLU variabel repo lagi.
+#
+# WAJIB dijalankan build ini: `npm run build:www`
+#   (prisma generate → api routes dipindah sementara → next export → www/)
+#
+# OPSIONAL (variabel repo, Settings → Secrets and variables → Actions
+# → tab Variables → New repository variable):
 #   Nama  : APP_NAME
-#   Nilai : nama yang tampil di bawah ikon + nama file APK
-#           (bila kosong: "RumahLayak"). Ikon launcher diambil otomatis
-#           dari assets/icon.png & assets/splash.png di repo.
-# Bila belum diisi, APK dibangun dengan server.url placeholder
-# (workflow tetap jalan, tapi APK menampilkan layar "belum tersambung").
+#   Nilai : nama di bawah ikon + nama file APK (bila kosong: RumahLayak)
+#   Nama  : APP_SERVER_URL  (opsional, alamat server bawaan yang ditanam
+#   di APK; pengguna tetap bisa menggantinya lewat menu Set IP)
 # ============================================================
 
 name: Build APK
@@ -34,6 +33,7 @@ on:
       - "capacitor.config.ts"
       - "package.json"
       - "package-lock.json"
+      - "scripts/apk/**"
       - ".github/workflows/build-apk.yml"
 
 concurrency:
@@ -46,15 +46,16 @@ permissions:
 
 jobs:
   apk:
-    name: APK debug (Android)
+    name: APK debug (Android, offline-first)
     runs-on: ubuntu-latest # runner GitHub sudah memuat Android SDK
     timeout-minutes: 30
     env:
-      # Variabel repo APP_SERVER_URL → dibaca capacitor.config.ts (CAP_SERVER_URL)
-      CAP_SERVER_URL: ${{ vars.APP_SERVER_URL }}
       # Variabel repo APP_NAME (opsional) → nama di bawah ikon Android,
       # nama file APK, dan judul Release. Bila kosong: RumahLayak.
       APP_NAME: ${{ vars.APP_NAME || 'RumahLayak' }}
+      # Alamat server bawaan yang ditanam ke bundle (opsional — pengguna
+      # tetap bisa mengganti lewat menu Set IP di dalam aplikasi).
+      NEXT_PUBLIC_DEFAULT_SERVER: ${{ vars.APP_SERVER_URL }}
     steps:
       - name: Ambil kode
         uses: actions/checkout@v4
@@ -75,6 +76,11 @@ jobs:
         # npm install (bukan npm ci) supaya build tetap jalan meski
         # package-lock.json di repo belum memuat dependensi Capacitor.
         run: npm install --no-audit --no-fund
+
+      - name: Bangun bundle web statis offline (npm run build:www)
+        # prisma generate → api routes dipindah sementara → next export →
+        # out/ disalin ke www/. Hasil: aplikasi penuh di dalam APK.
+        run: npm run build:www
 
       - name: Buat & selaraskan proyek Android
         run: |
@@ -100,13 +106,6 @@ jobs:
         # versionName = mayor.minor dari package.json + nomor build.
         run: node scripts/apk/apply-version.mjs
 
-      - name: Cek alamat server di dalam APK
-        run: |
-          echo "server.url = ${CAP_SERVER_URL:-PLACEHOLDER (isi variabel repo APP_SERVER_URL)}"
-          if [ -z "${CAP_SERVER_URL}" ]; then
-            echo "::warning::Variabel repo APP_SERVER_URL belum diisi — APK memakai placeholder. Isi di Settings → Secrets and variables → Actions → Variables."
-          fi
-
       - name: Bangun APK debug
         run: |
           cd android
@@ -120,13 +119,17 @@ jobs:
           cp android/app/build/outputs/apk/debug/app-debug.apk \
              "${APP_NAME}-v${VERSION}-debug.apk"
           {
-            echo "### Build ${APP_NAME} v${VERSION}"
+            echo "### Build ${APP_NAME} v${VERSION} (OFFLINE-FIRST)"
             echo ""
             echo "| Item | Nilai |"
             echo "| --- | --- |"
             echo "| versionName | ${VERSION} |"
             echo "| versionCode | ${{ steps.ver.outputs.versionCode }} |"
+            echo "| Server bawaan | ${NEXT_PUBLIC_DEFAULT_SERVER:-(belum diatur — diisi lewat menu Set IP di aplikasi)} |"
             echo "| File | ${APP_NAME}-v${VERSION}-debug.apk |"
+            echo ""
+            echo "APK membawa aplikasi penuh di dalamnya: bisa dibuka tanpa internet."
+            echo "Server untuk sinkronisasi diatur lewat ikon gear (Set IP) di layar login."
             echo ""
             echo "Unduh: bagian **Artifacts** (bawah halaman) atau halaman **Releases**."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -147,6 +150,5 @@ jobs:
           VERSION: ${{ steps.ver.outputs.versionName }}
         run: |
           gh release create "v${VERSION}" "${APP_NAME}-v${VERSION}-debug.apk" \
-            --title "${APP_NAME} v${VERSION}" \
-            --generate-notes --latest \
+            --title "${APP_NAME} v${VERSION}" --generate-notes --latest \
             || echo "Release v${VERSION} sudah ada — dilewati."
