@@ -70,6 +70,7 @@ export async function POST(req: Request) {
   if (me.role !== "AUDITOR") return forbidden("Hanya auditor yang dapat menyimpan pemeriksaan");
 
   let body: {
+    id?: string; // ID buatan perangkat saat offline → agar kirim-ulang antrean tidak menduplikasi
     barakId?: string;
     picLabel?: string;
     kesimpulan?: string;
@@ -82,6 +83,16 @@ export async function POST(req: Request) {
     body = await req.json();
   } catch {
     return badRequest("Format permintaan tidak valid");
+  }
+
+  // --- IDEMPOTEN (sinkron offline): bila pemeriksaan dengan ID client
+  // sudah pernah diterima, jangan buat lagi — balas data yang sudah ada.
+  if (body.id) {
+    const ada = await db.inspeksi.findUnique({
+      where: { id: body.id },
+      include: includeBarak,
+    });
+    if (ada) return Response.json({ inspeksi: serialize(ada), temuanDibuat: 0, sudahTersinkron: true });
   }
 
   const barakId = body.barakId;
@@ -129,6 +140,7 @@ export async function POST(req: Request) {
   const created = await db.$transaction(async (tx) => {
     const insp = await tx.inspeksi.create({
       data: {
+        ...(body.id && body.id.length <= 36 ? { id: body.id } : {}), // ID client (offline) bila ada
         kode, tanggal: now, minggu, periode,
         barakId, auditorId: me.id, picLabel,
         kesimpulan: body.kesimpulan?.trim() || null,
