@@ -4,6 +4,8 @@ import { useStore } from "@/lib/store";
 import { api, apiUrl, clearToken, getServerUrl, normalisasiServerUrl, setServerUrl, setToken } from "@/lib/api";
 import { bacaMasterCache, hapusMasterCache, simpanMasterCache } from "@/lib/master-cache";
 import type { MasterCache } from "@/lib/master-cache";
+import { autoSinkron, bacaSinkronTerakhir, hitungAntrean, simpanAkun, sinkronAntrean, verifikasiAkunOffline } from "@/lib/offline";
+import type { HasilSinkron } from "@/lib/offline";
 import { VERSI_APLIKASI, bandingkanVersi } from "@/lib/version";
 import { cn } from "@/lib/utils";
 import { qk, useRefresh } from "@/lib/queries";
@@ -13,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { CheckCircle2, Database, Download, HardDriveDownload, Loader2, LockKeyhole, LogOut, MapPin, RefreshCw, Server, Settings, Trash2, Wifi, X, ArrowRight } from "lucide-react";
+import { CheckCircle2, Database, Download, ExternalLink, HardDriveDownload, Loader2, LockKeyhole, LogOut, MapPin, RefreshCw, Server, Settings, Trash2, Upload, Wifi, X, ArrowRight } from "lucide-react";
 import { ScreenHeader, layarAwal } from "@/components/mobile/frame";
 import type { SessionUser } from "@/lib/types";
 
@@ -43,12 +45,15 @@ export function LoginScreen() {
 
   const masuk = async (pengguna?: string, sandi?: string) => {
     setKirim(true);
+    const nama = pengguna ?? username;
+    const sandiEfektif = sandi ?? pw;
     try {
       const res = await api.post<{ user: SessionUser; token: string }>(
         "/api/auth/login",
-        { username: pengguna ?? username, password: sandi ?? pw },
+        { username: nama, password: sandiEfektif },
       );
       setToken(res.token); // sesi Bearer — tetap hidup di iframe preview & WebView Capacitor
+      void simpanAkun(res.user, sandiEfektif); // cache utk login OFFLINE berikutnya
       qc.setQueryData(qk.session, { authenticated: true as const, user: res.user });
       qc.invalidateQueries({ queryKey: qk.master });
       setMobileScreen(layarAwal(res.user.role)); // langsung ke layar kerja utama sesuai peran
@@ -57,7 +62,28 @@ export function LoginScreen() {
           ? `Selamat datang, ${res.user.nama} — terikat ${ringkasBinding(res.user.bindings)}`
           : `Selamat datang, ${res.user.nama}`,
       );
+      // Antrean offline (pemeriksaan/temuan saat sinyal hilang) dikirim otomatis
+      const hasil = await autoSinkron(qc);
+      if (hasil && hasil.kirim > 0) {
+        toast.success(`${hasil.kirim} data offline berhasil dikirim ke server`);
+        qc.invalidateQueries({ queryKey: qk.inspeksi });
+        qc.invalidateQueries({ queryKey: qk.temuan });
+      }
     } catch (e) {
+      const status = (e as { status?: number }).status ?? 0;
+      if (status === 0) {
+        // Server tak terjangkau → login OFFLINE dari akun cache perangkat
+        const u = await verifikasiAkunOffline(nama, sandiEfektif);
+        if (u) {
+          setToken("offline");
+          qc.setQueryData(qk.session, { authenticated: true as const, user: u });
+          setMobileScreen(layarAwal(u.role));
+          toast.info(`MODE OFFLINE — halo ${u.nama}. Data baru disimpan di perangkat & otomatis terkirim saat online.`);
+          return;
+        }
+        toast.error("Server tidak terjangkau & akun belum pernah login di perangkat ini — sambungkan internet lalu coba lagi.");
+        return;
+      }
       toast.error((e as Error).message);
     } finally {
       setKirim(false);
@@ -144,8 +170,16 @@ export function PengaturanPerangkat({ onTutup }: { onTutup: () => void }) {
   const [update, setUpdate] = useState<StatusAksi | "tersedia">("idle");
   const [infoUpdate, setInfoUpdate] = useState("");
   const [versiServer, setVersiServer] = useState<{ versi: string; urlUnduh: string | null } | null>(null);
+  const [antre, setAntre] = useState(0);
+  const [sink, setSink] = useState<StatusAksi>("idle");
+  const [infoSink, setInfoSink] = useState("");
+  const [sinkronTerakhir, setSinkronTerakhir] = useState<HasilSinkron | null>(null);
 
-  useEffect(() => setCache(bacaMasterCache()), []);
+  useEffect(() => {
+    setCache(bacaMasterCache());
+    setAntre(hitungAntrean());
+    setSinkronTerakhir(bacaSinkronTerakhir());
+  }, []);
 
   const simpanIp = async () => {
     const bersih = ip.trim();
@@ -204,6 +238,35 @@ export function PengaturanPerangkat({ onTutup }: { onTutup: () => void }) {
     setCache(null);
     setUnduh("idle");
     setInfoUnduh("Cache data master dihapus dari perangkat.");
+  };
+
+  const sinkronSekarang = async () => {
+    setSink("jalan");
+    setInfoSink("");
+    if (hitungAntrean() === 0) {
+      setSink("ok");
+      setInfoSink(`Tidak ada data menunggu dikirim${sinkronTerakhir ? ` — sinkron terakhir ${fmtTanggalWaktu(sinkronTerakhir.waktu)}` : ""}.`);
+      return;
+    }
+    try {
+      const h = await sinkronAntrean();
+      setAntre(h.sisa);
+      setSinkronTerakhir(h);
+      if (h.kirim > 0) {
+        setSink("ok");
+        setInfoSink(`${h.kirim} data terkirim ke server${h.gagal ? `, ${h.gagal} ditolak` : ""}${h.sisa ? `, ${h.sisa} masih mengantre` : ""}.`);
+      } else if (h.sisa > 0) {
+        setSink("gagal");
+        setInfoSink(`Server tidak terjangkau — ${h.sisa} data tetap AMAN di perangkat, coba lagi saat online.`);
+      } else {
+        setSink("gagal");
+        setInfoSink(h.catatan[0] ?? "Sinkron belum selesai — login ulang lalu coba lagi.");
+      }
+      if (h.catatan.length && h.kirim > 0) setInfoSink((prev) => `${prev} ${h.catatan.join(" · ")}`);
+    } catch {
+      setSink("gagal");
+      setInfoSink("Sinkron gagal — periksa alamat IP (Set IP) dan koneksi, lalu coba lagi.");
+    }
   };
 
   const cekUpdate = async () => {
@@ -308,6 +371,24 @@ export function PengaturanPerangkat({ onTutup }: { onTutup: () => void }) {
           <p className="mt-1 text-[9.5px] text-slate-400">Cache dipakai otomatis bila server tidak terjangkau; tidak memuat data pengguna.</p>
         </section>
 
+        {/* ---------- SINKRONISASI DATA ---------- */}
+        <section className="rounded-xl border bg-white p-3">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500"><Upload className="h-3.5 w-3.5 text-forest" /> SINKRONISASI DATA</p>
+          <p className="mt-1 text-[10.5px] leading-relaxed text-slate-600">
+            {antre > 0
+              ? <b className="text-amber-700">{antre} data menunggu dikirim saat online.</b>
+              : "Semua data sudah tersinkron dengan server."}
+            {sinkronTerakhir ? ` Sinkron terakhir: ${fmtTanggalWaktu(sinkronTerakhir.waktu)}.` : ""}
+          </p>
+          <Button onClick={sinkronSekarang} disabled={sink === "jalan"} className="mt-2 h-9 w-full bg-forest text-[11.5px] font-bold hover:bg-forest-deep">
+            {sink === "jalan" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />} Sinkron Sekarang
+          </Button>
+          {garisStatus(infoSink, sink)}
+          <p className="mt-1 text-[9.5px] leading-relaxed text-slate-400">
+            Pemeriksaan, temuan, tindak lanjut & verifikasi yang dibuat saat offline otomatis masuk antrean perangkat dan terkirim saat online (setelah login / buka aplikasi).
+          </p>
+        </section>
+
         {/* ---------- UPDATE APLIKASI ---------- */}
         <section className="rounded-xl border bg-white p-3">
           <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500"><RefreshCw className="h-3.5 w-3.5 text-forest" /> APLIKASI</p>
@@ -321,6 +402,13 @@ export function PengaturanPerangkat({ onTutup }: { onTutup: () => void }) {
               <Download className="mr-1.5 h-3.5 w-3.5" /> Unduh Update (v{versiServer?.versi})
             </Button>
           )}
+          <Button
+            variant="outline"
+            onClick={() => window.open("https://github.com/afiashidqia89-ops/MyHome/releases/latest", "_blank")}
+            className="mt-1.5 h-9 w-full text-[11.5px] text-forest"
+          >
+            <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Buka Halaman Rilis APK (GitHub)
+          </Button>
         </section>
       </div>
     </div>
@@ -333,7 +421,30 @@ export function ProfileScreen() {
   const refresh = useRefresh();
   const [cekKoneksi, setCekKoneksi] = useState<"idle" | "cek" | "ok" | "gagal">("idle");
   const [serverInfo, setServerInfo] = useState<string>("");
+  const [antre, setAntre] = useState(0);
+  const [sinkronJalan, setSinkronJalan] = useState(false);
+  useEffect(() => setAntre(hitungAntrean()), []);
   if (!session) return null;
+
+  const sinkron = async () => {
+    setSinkronJalan(true);
+    try {
+      const h = await sinkronAntrean();
+      setAntre(h.sisa);
+      if (h.kirim > 0) {
+        toast.success(`${h.kirim} data offline terkirim ke server`);
+        refresh();
+      } else if (h.sisa > 0) {
+        toast.warning(`Server tidak terjangkau — ${h.sisa} data tetap aman di perangkat.`);
+      } else {
+        toast.info("Tidak ada data yang menunggu dikirim.");
+      }
+    } catch {
+      toast.error("Sinkron gagal — cek koneksi / Set IP lalu coba lagi.");
+    } finally {
+      setSinkronJalan(false);
+    }
+  };
 
   const ujiServer = async () => {
     setCekKoneksi("cek");
@@ -384,6 +495,12 @@ export function ProfileScreen() {
             </Button>
             <Button variant="outline" onClick={refresh} className="h-9 flex-1 text-[11.5px] text-forest"><Database className="mr-1 h-3.5 w-3.5" /> Refresh Data</Button>
           </div>
+          <div className="mt-2 rounded-lg bg-slate-50 p-2 text-[10.5px] text-slate-600">
+            <p><b>{antre}</b> data menunggu dikirim saat online{antre > 0 ? " — pemeriksaan/temuan buatan offline aman di perangkat" : ""}.</p>
+          </div>
+          <Button onClick={sinkron} disabled={sinkronJalan} className="mt-2 h-9 w-full bg-forest text-[11.5px] font-bold hover:bg-forest-deep">
+            {sinkronJalan ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />} Sinkron Sekarang
+          </Button>
         </div>
 
         <div className="mt-3 rounded-xl border bg-white p-3">
