@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useStore, namaAfdeling, namaBarak } from "@/lib/store";
 import { api } from "@/lib/api";
 import { qk, useInspeksi, useRefresh, useTemuan } from "@/lib/queries";
-import { fmtTanggal, fmtTanggalWaktu, generateFotoCanvas, kartuStatus } from "@/lib/utils-rl";
+import { fmtKoor, fmtTanggal, fmtTanggalWaktu, kartuStatus } from "@/lib/utils-rl";
+import { ambilFotoDenganWatermark, lokasiSaatIni } from "@/lib/perangkat";
 import { ScreenHeader } from "@/components/mobile/frame";
 import { LevelBadge, SlaInfo, StatusTemuanBadge } from "@/components/rl-bits";
 import { Button } from "@/components/ui/button";
@@ -24,48 +25,65 @@ const FILTERS: { id: "SEMUA" | FindingStatus; label: string }[] = [
   { id: "CLOSED", label: "Selesai" },
 ];
 
-// ============ DAFTAR TEMUAN ============
-export function FindingsScreen() {
+// ============ DAFTAR TEMUAN (gabungan: tab TEMUAN + tab RIWAYAT) ============
+// Konsolidasi menu: "Riwayat" tidak lagi menjadi tab bawah sendiri —
+// masuk sebagai tab segmen di dalam layar Temuan.
+export function FindingsScreen({ tabAwal = "temuan" }: { tabAwal?: "temuan" | "riwayat" }) {
   const store = useStore();
   const { session, setActiveFinding, setMobileScreen } = store;
   const { data: findings = [], isLoading } = useTemuan(true);
+  const [tab, setTab] = useState<"temuan" | "riwayat">(tabAwal);
   const [filter, setFilter] = useState<"SEMUA" | FindingStatus>("SEMUA");
 
   const list = (filter === "SEMUA" ? findings : findings.filter((f) => f.status === filter));
 
   return (
     <div className="flex h-full flex-col">
-      <ScreenHeader title="Temuan & Tindak Lanjut" sub={session?.role === "AUDITEE" ? "Temuan yang ditugaskan kepada Anda (dari server)" : "Seluruh temuan pemeriksaan (dari server)"} />
+      <ScreenHeader title="Temuan & Riwayat" sub={session?.role === "AUDITEE" ? "Temuan Anda & arsip pemeriksaan (dari server)" : "Temuan, tindak lanjut & arsip pemeriksaan (dari server)"} />
       <div className="shrink-0 space-y-2 border-b bg-white px-3 py-2">
-        <div className="flex gap-1.5 overflow-x-auto thin-scroll pb-1">
-          {FILTERS.map((f) => {
-            const n = f.id === "SEMUA" ? findings.length : findings.filter((x) => x.status === f.id).length;
-            return (
-              <button key={f.id} onClick={() => setFilter(f.id)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[10.5px] font-semibold", filter === f.id ? "border-forest bg-forest text-white" : "border-slate-200 bg-white text-slate-600")}>
-                {f.label} ({n})
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <div className="flex-1 space-y-2 overflow-y-auto thin-scroll p-3">
-        {isLoading && <p className="mt-10 text-center text-[12px] text-slate-400"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> Memuat dari server...</p>}
-        {!isLoading && list.length === 0 && <p className="mt-10 text-center text-[12px] text-slate-400">Tidak ada temuan pada filter ini</p>}
-        {list.map((f) => (
-          <button key={f.id} onClick={() => { setActiveFinding(f.id); setMobileScreen("finding-detail"); }} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-forest">
-            <div className="flex items-center gap-2">
-              <LevelBadge level={f.level} />
-              <span className="text-[12px] font-bold text-slate-800">{f.kode}</span>
-              <StatusTemuanBadge status={f.status} />
-            </div>
-            <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-600">{f.uraian}</p>
-            <div className="mt-2 flex items-center justify-between border-t pt-2">
-              <span className="flex items-center gap-1 text-[10px] text-slate-400"><MapPin className="h-3 w-3" /> {namaBarak(f.barakId)} • {namaAfdeling(f.afdelingId)}</span>
-              <SlaInfo target={f.targetSelesai} />
-            </div>
+        <div className="grid grid-cols-2 gap-1">
+          <button onClick={() => setTab("temuan")} className={cn("rounded-lg py-2 text-[11px] font-bold", tab === "temuan" ? "bg-forest text-white" : "bg-slate-100 text-slate-600")}>
+            TEMUAN ({findings.length})
           </button>
-        ))}
+          <button onClick={() => setTab("riwayat")} className={cn("rounded-lg py-2 text-[11px] font-bold", tab === "riwayat" ? "bg-forest text-white" : "bg-slate-100 text-slate-600")}>
+            RIWAYAT PEMERIKSAAN
+          </button>
+        </div>
+        {tab === "temuan" && (
+          <div className="flex gap-1.5 overflow-x-auto thin-scroll pb-1">
+            {FILTERS.map((f) => {
+              const n = f.id === "SEMUA" ? findings.length : findings.filter((x) => x.status === f.id).length;
+              return (
+                <button key={f.id} onClick={() => setFilter(f.id)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[10.5px] font-semibold", filter === f.id ? "border-forest bg-forest text-white" : "border-slate-200 bg-white text-slate-600")}>
+                  {f.label} ({n})
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
+      {tab === "temuan" ? (
+        <div className="flex-1 space-y-2 overflow-y-auto thin-scroll p-3">
+          {isLoading && <p className="mt-10 text-center text-[12px] text-slate-400"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> Memuat dari server...</p>}
+          {!isLoading && list.length === 0 && <p className="mt-10 text-center text-[12px] text-slate-400">Tidak ada temuan pada filter ini</p>}
+          {list.map((f) => (
+            <button key={f.id} onClick={() => { setActiveFinding(f.id); setMobileScreen("finding-detail"); }} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-forest">
+              <div className="flex items-center gap-2">
+                <LevelBadge level={f.level} />
+                <span className="text-[12px] font-bold text-slate-800">{f.kode}</span>
+                <StatusTemuanBadge status={f.status} />
+              </div>
+              <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-600">{f.uraian}</p>
+              <div className="mt-2 flex items-center justify-between border-t pt-2">
+                <span className="flex items-center gap-1 text-[10px] text-slate-400"><MapPin className="h-3 w-3" /> {namaBarak(f.barakId)} • {namaAfdeling(f.afdelingId)}</span>
+                <SlaInfo target={f.targetSelesai} />
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <DaftarRiwayat />
+      )}
     </div>
   );
 }
@@ -80,6 +98,7 @@ export function FindingDetailScreen() {
   const [uraian, setUraian] = useState("");
   const [foto, setFoto] = useState<{ dataUrl: string; lat: number; lng: number } | undefined>(undefined);
   const [mengirim, setMengirim] = useState(false);
+  const [mengambilFoto, setMengambilFoto] = useState(false);
 
   if (!session) return null;
   const f = findings.find((x) => x.id === activeFindingId);
@@ -93,9 +112,28 @@ export function FindingDetailScreen() {
   const sebagaiAuditee = session.role === "AUDITEE" && f.auditeeId === session.id;
   const sebagaiAuditor = session.role === "AUDITOR" || session.role === "ADMIN";
 
-  const ambilFotoBukti = () => {
-    setFoto({ dataUrl: generateFotoCanvas(`BUKTI PERBAIKAN • ${f.kode}`, `${namaBarak(f.barakId)} • ${new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`), lat: -0.05 + Math.random() * 0.01, lng: 109.3 + Math.random() * 0.03 });
-    toast.success("Foto bukti tergeotag dilampirkan");
+  // FOTO BUKTI ASLI dari kamera + GPS ASLI perangkat; GPS gagal → koordinat
+  // perumahan dari master data (bukan angka acak).
+  const ambilFotoBukti = async () => {
+    if (mengambilFoto) return;
+    setMengambilFoto(true);
+    try {
+      const lok = await lokasiSaatIni().catch(() => null);
+      const barak = master?.baraks.find((b) => b.id === f.barakId);
+      const lat = lok?.lat ?? barak?.koordinat.lat ?? 0;
+      const lng = lok?.lng ?? barak?.koordinat.lng ?? 0;
+      const dataUrl = await ambilFotoDenganWatermark(
+        `BUKTI PERBAIKAN • ${f.kode}`,
+        `${namaBarak(f.barakId)} • ${fmtKoor(lat, lng)} • ${new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
+      );
+      setFoto({ dataUrl, lat, lng });
+      toast.success(lok ? "Foto bukti + GPS asli perangkat terlampir" : "Foto bukti terlampir — GPS tidak tersedia, memakai koordinat perumahan");
+    } catch (e) {
+      const pesan = (e as Error).message;
+      if (pesan && !/dibatalkan/i.test(pesan)) toast.error(pesan);
+    } finally {
+      setMengambilFoto(false);
+    }
   };
 
   const tandaiProgres = async () => {
@@ -220,8 +258,9 @@ export function FindingDetailScreen() {
             <p className="mt-2 text-[10px] font-bold text-slate-500">LAMPIRKAN HASIL PERBAIKAN</p>
             <Textarea value={uraian} onChange={(e) => setUraian(e.target.value)} placeholder="Uraikan pekerjaan yang dilakukan, material, dan hasilnya..." className="mt-1 min-h-[64px] bg-white text-[11.5px]" />
             <div className="mt-2 flex gap-2">
-              <Button variant="outline" onClick={ambilFotoBukti} className="h-10 flex-1 border-dashed bg-white text-[11.5px] text-forest">
-                <Camera className="mr-1.5 h-4 w-4" /> {foto ? "Foto Terlampir (ganti)" : "Ambil Foto Bukti"}
+              <Button variant="outline" onClick={ambilFotoBukti} disabled={mengambilFoto} className="h-10 flex-1 border-dashed bg-white text-[11.5px] text-forest">
+                {mengambilFoto ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Camera className="mr-1.5 h-4 w-4" />}
+                {mengambilFoto ? "Membuka kamera..." : foto ? "Foto Terlampir (ganti)" : "Ambil Foto Bukti (Kamera)"}
               </Button>
             </div>
             {foto && (
@@ -262,8 +301,8 @@ export function FindingDetailScreen() {
   );
 }
 
-// ============ RIWAYAT ============
-export function HistoryScreen() {
+// ============ DAFTAR RIWAYAT (segmen di dalam layar Temuan & Riwayat) ============
+function DaftarRiwayat() {
   const store = useStore();
   const { master, setActiveFinding, setMobileScreen } = store;
   const { data: inspections = [] } = useInspeksi(true);
@@ -276,9 +315,8 @@ export function HistoryScreen() {
     .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.kode.localeCompare(a.kode));
 
   return (
-    <div className="flex h-full flex-col">
-      <ScreenHeader title="Riwayat Pemeriksaan" sub="Arsip pemeriksaan — tersimpan di database server" />
-      <div className="shrink-0 flex gap-1.5 overflow-x-auto thin-scroll border-b bg-white px-3 py-2">
+    <>
+      <div className="shrink-0 flex gap-1.5 overflow-x-auto thin-scroll bg-white px-3 pb-2">
         {(["SEMUA", 1, 2, 3, 4] as const).map((w) => (
           <button key={w} onClick={() => setMinggu(w)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[10.5px] font-semibold", minggu === w ? "border-forest bg-forest text-white" : "border-slate-200 bg-white text-slate-600")}>
             {w === "SEMUA" ? "Semua Minggu" : `Minggu ${w}`}
@@ -286,11 +324,12 @@ export function HistoryScreen() {
         ))}
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto thin-scroll p-3">
+        {list.length === 0 && <p className="mt-10 text-center text-[12px] text-slate-400">Belum ada pemeriksaan terarsip</p>}
         {list.map((i) => {
           const auditor = master?.users.find((u) => u.id === i.auditorId);
           const tnd = findings.filter((f) => f.inspectionId === i.id);
           return (
-            <button key={i.id} onClick={() => { setActiveFinding(tnd[0]?.id ?? null); setMobileScreen(tnd.length ? "finding-detail" : "history"); }} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-forest">
+            <button key={i.id} onClick={() => { setActiveFinding(tnd[0]?.id ?? null); setMobileScreen(tnd.length ? "finding-detail" : "findings"); }} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-forest">
               <div className="flex items-center justify-between">
                 <span className="text-[12px] font-bold text-slate-800">{i.kode}</span>
                 <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-bold", i.sync === "synced" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500")}>{i.sync === "synced" ? "TER-SYNC" : "DRAFT"}</span>
@@ -309,6 +348,6 @@ export function HistoryScreen() {
           );
         })}
       </div>
-    </div>
+    </>
   );
 }
