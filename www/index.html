@@ -11,8 +11,7 @@
         background: #14532d; color: #fff; text-align: center;
         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       }
-      .kartu { max-width: 22rem; padding: 1.5rem; }
-      .logo { font-size: 2.5rem; line-height: 1; }
+      .kartu { max-width: 23rem; padding: 1.5rem; }
       h1 { margin: 0.75rem 0 0.25rem; font-size: 1.4rem; color: #fbbf24; }
       p { margin: 0.35rem 0; font-size: 0.9rem; opacity: 0.9; }
       code { background: rgba(255,255,255,.12); padding: 0.15rem 0.4rem; border-radius: 6px; }
@@ -22,18 +21,10 @@
     <div class="kartu">
       <div class="logo"><img src="icon-192.png" alt="Logo RumahLayak" style="width:96px;height:96px;border-radius:22%;" /></div>
       <h1>RumahLayak</h1>
-      <p>Menghubungkan ke server pemeriksaan&#8230;</p>
-      <p>Bila layar ini muncul terus, isi <code>server.url</code> pada
-        <code>capacitor.config.ts</code> dengan domain Vercel Anda,
-        lalu jalankan <code>npx cap sync android</code> dan bangun ulang APK.</p>
+      <p>Bundle aplikasi belum terpasang di APK ini.</p>
+      <p>Jalankan <code>npm run build:www</code> lalu <code>npx cap sync android</code>,
+        atau bangun APK lewat workflow GitHub <b>Build APK</b>
+        (workflow sudah otomatis menjalankan kedua langkah itu).</p>
     </div>
-    <script>
-      // Jembatan: bila server.url sudah benar, Capacitor akan memuat
-      // domain tersebut langsung — halaman ini hanya tampil sesaat.
-      setTimeout(function () {
-        var t = document.querySelector("p");
-        if (t) t.textContent = "Belum tersambung — periksa server.url di capacitor.config.ts, atau buka menu Set IP di aplikasi.";
-      }, 4000);
-    </script>
   </body>
 </html>
