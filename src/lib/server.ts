@@ -68,10 +68,13 @@ export function alamatAktif(): string | null {
 /** True bila ada alamat API yang bisa dipakai (Set IP / bawaan build / portal web). */
 export function serverTerpasang(): boolean {
   if (typeof window === "undefined") return true;
-  // Di portal web (bukan APK) path relatif selalu valid — server ada di origin yang sama.
+  // Portal web (bukan APK): TANPA alamat pun path relatif selalu valid —
+  // server ada di origin yang sama (regresi login web: dulu terbalik).
+  // Sebaliknya di APK (WebView) tanpa Set IP / bawaan build tidak ada
+  // server yang bisa dihubungi → wajib isi Set IP.
   // Pakai isNativePlatform(): "Capacitor" in window juga TRUE di browser
   // karena @capacitor/core mendefinisikan window.Capacitor di web.
-  if (!alamatAktif()) return Capacitor.isNativePlatform();
+  if (!alamatAktif()) return !Capacitor.isNativePlatform();
   return true;
 }
 
