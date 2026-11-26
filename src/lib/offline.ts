@@ -263,7 +263,16 @@ export async function sinkronAntrean(): Promise<HasilSinkron> {
       hasil.catatan.push("Sesi berakhir — login ulang untuk melanjutkan pengiriman.");
       break;
     }
-    // 4xx lain / 5xx: server menolak permanen (validasi/konflik) — jangan diulang
+    if (res.status >= 500) {
+      // 5xx = KESALAHAN SERVER (sementara) — JANGAN buang data:
+      // tetap di antrean dan dicoba lagi saat Sinkron berikutnya.
+      masih.push(op);
+      hasil.catatan.push(`${op.label}: server sedang bermasalah (${res.status}) — data tetap AMAN di perangkat, coba sinkron lagi nanti.`);
+      break; // server bermasalah — op berikutnya kemungkinan juga gagal, hentikan loop
+    }
+    // 4xx lain: server menolak PERMANEN (validasi/konflik) — tidak diulang
+    // agar antrean tidak macet; datanya masih ada di balasan server bila
+    // bentrok (idempotent POST inspeksi menahan duplikasi).
     hasil.gagal++;
     const pesan = await res.json().catch(() => ({}) as { error?: string });
     hasil.catatan.push(`${op.label}: ${pesan.error ?? `ditolak server (${res.status})`}`);
