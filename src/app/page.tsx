@@ -27,6 +27,7 @@ import { useState } from "react";
 import type { SessionUser } from "@/lib/types";
 import type { MobileScreen } from "@/lib/types";
 import { autoSinkron, hitungAntrean } from "@/lib/offline";
+import { diApk } from "@/lib/perangkat";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
@@ -183,21 +184,27 @@ function AppRoot() {
     }).catch(() => { /* senyap — antrean tetap aman di perangkat */ });
   }, [sess?.authenticated]);
 
-  // Deteksi lingkungan sekali saat mulai:
+  // Deteksi lingkungan (dihitung ulang saat orientasi/ukuran jendela berubah):
   //   - APK (dijalankan di WebView Capacitor) → tampilan MOBILE penuh layar
   //   - Browser ponsel (layar sempit) → tampilan MOBILE penuh layar
   //   - Browser desktop → PORTAL WEB penuh
   // Tidak ada mode "gabungan": web ya web, APK ya APK.
+  // PENTING: pakai Capacitor.isNativePlatform() (via diApk()), BUKAN
+  // "Capacitor" in window — @capacitor/core juga mendefinisikan
+  // window.Capacitor di browser, sehingga cek itu selalu true dan
+  // browser desktop ikut mendapat tampilan mobile (bug v0.3).
   useEffect(() => {
-    const diApk = typeof window !== "undefined" && "Capacitor" in window;
-    const layarSempit = typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 767px)").matches;
-    useStore.getState().setMode(diApk || layarSempit ? "mobile" : "web");
+    const mq = window.matchMedia("(max-width: 767px)");
+    const terapkan = () => useStore.getState().setMode(diApk() || mq.matches ? "mobile" : "web");
+    terapkan();
+    mq.addEventListener?.("change", terapkan);
+    return () => mq.removeEventListener?.("change", terapkan);
   }, []);
 
   // Tombol BACK perangkat (APK): mundur bertahap / ke beranda, bukan keluar.
   // Hanya aktif di dalam APK — di browser perilaku back default dibiarkan.
   useEffect(() => {
-    if (typeof window === "undefined" || !("Capacitor" in window)) return;
+    if (!diApk()) return;
     let hancur = false;
     let sub: { remove: () => Promise<void> } | null = null;
     void (async () => {
