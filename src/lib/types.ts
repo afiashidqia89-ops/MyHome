@@ -153,6 +153,7 @@ export interface AppUser {
   kebunId?: string;
   afdelingId?: string;
   status: UserStatus;
+  menuAkses?: string | null; // halaman portal web yg boleh diakses ("dashboard,detail") — kosong = default peran
   createdAt: string;
 }
 
@@ -176,6 +177,7 @@ export interface SessionUser {
   afdelingNama: string | null;
   bindings: string[]; // multi binding: "Estate / Kebun / Afdeling / Perumahan"
   status: UserStatus;
+  menuAkses: string | null; // halaman portal web yg boleh diakses ("dashboard,detail") — kosong = default peran
   createdAt: string;
 }
 
