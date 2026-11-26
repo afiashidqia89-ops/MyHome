@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -58,6 +59,8 @@ export function WebMaster() {
   const [menyimpan, setMenyimpan] = useState(false);
   const [hapusId, setHapusId] = useState<string | null>(null);
   const [hapusNama, setHapusNama] = useState("");
+  const [pilih, setPilih] = useState<Set<string>>(new Set());
+  const [menghapusMassa, setMenghapusMassa] = useState(false);
 
   // ---------- Unggah XLSX data master ----------
   const [unggahOpen, setUnggahOpen] = useState(false);
@@ -159,6 +162,55 @@ export function WebMaster() {
     }
   };
 
+  // ---------- Cek semua / hapus terpilih (multi baris pada tab aktif) ----------
+  const daftarEntitasAktif =
+    entitas === "estate" ? (master?.estates ?? [])
+    : entitas === "kebun" ? (master?.kebuns ?? [])
+    : entitas === "afdeling" ? (master?.afdelings ?? [])
+    : (master?.baraks ?? []);
+  const semuaDipilih = daftarEntitasAktif.length > 0 && daftarEntitasAktif.every((x) => pilih.has(x.id));
+  const sebagianDipilih = pilih.size > 0 && !semuaDipilih;
+  const cekSemua = () => {
+    if (semuaDipilih) setPilih(new Set());
+    else setPilih(new Set(daftarEntitasAktif.map((x) => x.id)));
+  };
+  const toggleBaris = (id: string) => {
+    const s = new Set(pilih);
+    if (s.has(id)) s.delete(id);
+    else s.add(id);
+    setPilih(s);
+  };
+  const namaBaris = (id: string) => daftarEntitasAktif.find((x) => x.id === id)?.nama ?? id;
+
+  /** Hapus semua baris tercentang pada tab aktif — dijalankan satu per satu
+   *  via API per-item (server menolak 409 bila data masih dipakai), lalu
+   *  ringkasan sukses/gagal dilaporkan. */
+  const hapusMassal = async () => {
+    const ids = [...pilih];
+    if (!ids.length) return;
+    setMenghapusMassa(true);
+    let sukses = 0;
+    const gagal: string[] = [];
+    for (const id of ids) {
+      try {
+        await api.del(`/api/master/${entitas}/${id}`);
+        sukses += 1;
+      } catch {
+        gagal.push(namaBaris(id));
+      }
+    }
+    refresh();
+    setMenghapusMassa(false);
+    setPilih(new Set());
+    if (gagal.length === 0) {
+      toast.success(`${sukses} ${LABEL_ENTITAS[entitas]} terpilih dihapus dari data master`);
+    } else {
+      toast.warning(
+        `${sukses} dihapus, ${gagal.length} gagal (masih dipakai data lain): ${gagal.slice(0, 5).join(", ")}${gagal.length > 5 ? "…" : ""}`,
+      );
+    }
+  };
+
   const simpan = async () => {
     const nama = form.nama.trim();
     if (!nama) {
@@ -247,7 +299,7 @@ export function WebMaster() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-[13px] font-bold text-slate-800">Manajemen Data Master</h3>
-            <p className="text-[11px] text-slate-500">Struktur organisasi Estate → Kebun → Afdeling → Perumahan. Perubahan langsung tersimpan di server & tersedia ke seluruh APK.</p>
+            <p className="text-[11px] text-slate-500">Struktur organisasi Estate → Kebun → Afdeling → Perumahan. Perubahan langsung tersimpan di server & tersedia ke seluruh APK — centang baris atau Cek Semua di kepala tabel, lalu Hapus Terpilih untuk hapus massal.</p>
           </div>
           <div className="flex gap-2">
             <Button
@@ -268,13 +320,35 @@ export function WebMaster() {
             >
               <Upload className="mr-1.5 h-4 w-4" /> Unggah XLSX
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" disabled={pilih.size === 0} className="h-9 border-red-300 text-[12px] font-semibold text-red-600 hover:bg-red-50">
+                  <Trash2 className="mr-1.5 h-4 w-4" /> Hapus Terpilih ({pilih.size})
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-[15px]">Hapus {pilih.size} {LABEL_ENTITAS[entitas]} terpilih?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-[12px]">
+                    Penghapusan dijalankan satu per satu — baris yang masih dipakai data lain akan ditolak server (409) dan dilaporkan setelah proses selesai. Aksi tercatat di audit trail.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="h-9 text-[12px]">Batal</AlertDialogCancel>
+                  <AlertDialogAction onClick={hapusMassal} disabled={menghapusMassa} className="h-9 bg-red-600 text-[12px] hover:bg-red-700">
+                    {menghapusMassa ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
+                    {menghapusMassa ? "Menghapus..." : "Ya, Hapus Semua Terpilih"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button onClick={() => bukaTambah(entitas)} className="h-9 bg-forest text-[12px] font-semibold hover:bg-forest-deep">
               <Plus className="mr-1.5 h-4 w-4" /> Tambah {LABEL_ENTITAS[entitas]}
             </Button>
           </div>
         </div>
 
-        <Tabs value={entitas} onValueChange={(v) => setEntitas(v as Entity)} className="mt-3">
+        <Tabs value={entitas} onValueChange={(v) => { setEntitas(v as Entity); setPilih(new Set()); }} className="mt-3">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="estate" className="text-[11.5px]">Estate</TabsTrigger>
             <TabsTrigger value="kebun" className="text-[11.5px]">Kebun</TabsTrigger>
@@ -286,6 +360,14 @@ export function WebMaster() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50">
+                  <TableHead className="w-9">
+                    <Checkbox
+                      checked={semuaDipilih ? true : sebagianDipilih ? "indeterminate" : false}
+                      onCheckedChange={cekSemua}
+                      aria-label="Cek semua baris"
+                      className="h-3.5 w-3.5"
+                    />
+                  </TableHead>
                   <TableHead className="text-[11px]">Nama Estate</TableHead>
                   <TableHead className="text-[11px]">Jumlah Kebun</TableHead>
                   <TableHead className="text-[11px] text-right">Aksi</TableHead>
@@ -294,6 +376,9 @@ export function WebMaster() {
               <TableBody>
                 {(master?.estates ?? []).map((x) => (
                   <TableRow key={x.id}>
+                    <TableCell>
+                      <Checkbox checked={pilih.has(x.id)} onCheckedChange={() => toggleBaris(x.id)} aria-label={`Pilih ${x.nama}`} className="h-3.5 w-3.5" />
+                    </TableCell>
                     <TableCell className="text-[12px] font-semibold text-slate-700">{x.nama}</TableCell>
                     <TableCell className="text-[11.5px] text-slate-500">{(master?.kebuns ?? []).filter((k) => k.estateId === x.id).length} kebun</TableCell>
                     <TableCell><AksiRow e="estate" id={x.id} nama={x.nama} /></TableCell>
@@ -307,6 +392,14 @@ export function WebMaster() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50">
+                  <TableHead className="w-9">
+                    <Checkbox
+                      checked={semuaDipilih ? true : sebagianDipilih ? "indeterminate" : false}
+                      onCheckedChange={cekSemua}
+                      aria-label="Cek semua baris"
+                      className="h-3.5 w-3.5"
+                    />
+                  </TableHead>
                   <TableHead className="text-[11px]">Nama Kebun</TableHead>
                   <TableHead className="text-[11px]">Estate</TableHead>
                   <TableHead className="text-[11px]">Afdeling</TableHead>
@@ -317,6 +410,9 @@ export function WebMaster() {
               <TableBody>
                 {(master?.kebuns ?? []).map((x) => (
                   <TableRow key={x.id}>
+                    <TableCell>
+                      <Checkbox checked={pilih.has(x.id)} onCheckedChange={() => toggleBaris(x.id)} aria-label={`Pilih ${x.nama}`} className="h-3.5 w-3.5" />
+                    </TableCell>
                     <TableCell className="text-[12px] font-semibold text-slate-700">{x.nama}</TableCell>
                     <TableCell className="text-[11.5px] text-slate-500">{namaEstate(x.estateId)}</TableCell>
                     <TableCell className="text-[11.5px] text-slate-500">{(master?.afdelings ?? []).filter((a) => a.kebunId === x.id).length}</TableCell>
@@ -332,6 +428,14 @@ export function WebMaster() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50">
+                  <TableHead className="w-9">
+                    <Checkbox
+                      checked={semuaDipilih ? true : sebagianDipilih ? "indeterminate" : false}
+                      onCheckedChange={cekSemua}
+                      aria-label="Cek semua baris"
+                      className="h-3.5 w-3.5"
+                    />
+                  </TableHead>
                   <TableHead className="text-[11px]">Nama Afdeling</TableHead>
                   <TableHead className="text-[11px]">Kebun</TableHead>
                   <TableHead className="text-[11px]">Perumahan</TableHead>
@@ -342,6 +446,9 @@ export function WebMaster() {
               <TableBody>
                 {(master?.afdelings ?? []).map((x) => (
                   <TableRow key={x.id}>
+                    <TableCell>
+                      <Checkbox checked={pilih.has(x.id)} onCheckedChange={() => toggleBaris(x.id)} aria-label={`Pilih ${x.nama}`} className="h-3.5 w-3.5" />
+                    </TableCell>
                     <TableCell className="text-[12px] font-semibold text-slate-700">{x.nama}</TableCell>
                     <TableCell className="text-[11.5px] text-slate-500">{namaKebun(x.kebunId)}</TableCell>
                     <TableCell className="text-[11.5px] text-slate-500">{(master?.baraks ?? []).filter((b) => b.afdelingId === x.id).length}</TableCell>
@@ -357,6 +464,14 @@ export function WebMaster() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50">
+                  <TableHead className="w-9">
+                    <Checkbox
+                      checked={semuaDipilih ? true : sebagianDipilih ? "indeterminate" : false}
+                      onCheckedChange={cekSemua}
+                      aria-label="Cek semua baris"
+                      className="h-3.5 w-3.5"
+                    />
+                  </TableHead>
                   <TableHead className="text-[11px]">Nama Perumahan</TableHead>
                   <TableHead className="text-[11px]">Afdeling / Kebun</TableHead>
                   <TableHead className="text-[11px]">Tipe</TableHead>
@@ -370,6 +485,9 @@ export function WebMaster() {
                   const afd = master?.afdelings.find((a) => a.id === x.afdelingId);
                   return (
                     <TableRow key={x.id}>
+                      <TableCell>
+                        <Checkbox checked={pilih.has(x.id)} onCheckedChange={() => toggleBaris(x.id)} aria-label={`Pilih ${x.nama}`} className="h-3.5 w-3.5" />
+                      </TableCell>
                       <TableCell className="text-[12px] font-semibold text-slate-700">{x.nama}</TableCell>
                       <TableCell className="text-[11.5px] text-slate-500">{afd?.nama ?? "-"} / {namaKebun(afd?.kebunId ?? "")}</TableCell>
                       <TableCell className="text-[11px] text-slate-500">{x.tipe}</TableCell>
