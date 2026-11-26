@@ -186,12 +186,17 @@ export function WebUsers() {
   const [open, setOpen] = useState(false);
   const [nama, setNama] = useState("");
   const [jabatan, setJabatan] = useState("");
+  const [sandi, setSandi] = useState("");
   const [role, setRole] = useState<Role>("AUDITEE");
   const [sel, setSel] = useState<SetBinding>({ e: new Set(), k: new Set(), a: new Set(), b: new Set() });
   const [menyimpan, setMenyimpan] = useState(false);
 
-  // Dialog ubah binding user eksisting
+  // Dialog UBAH DATA user eksisting (nama, jabatan, role, kata sandi, binding)
   const [editTarget, setEditTarget] = useState<{ id: string; nama: string; role: string } | null>(null);
+  const [editNama, setEditNama] = useState("");
+  const [editJabatan, setEditJabatan] = useState("");
+  const [editRole, setEditRole] = useState<Role>("AUDITEE");
+  const [editSandi, setEditSandi] = useState("");
   const [selEdit, setSelEdit] = useState<SetBinding>({ e: new Set(), k: new Set(), a: new Set(), b: new Set() });
 
   // Dialog HAPUS user permanen (tombol di kolom Aksi tabel)
@@ -199,10 +204,12 @@ export function WebUsers() {
   const [menghapus, setMenghapus] = useState(false);
 
   const totalPilihan = sel.e.size + sel.k.size + sel.a.size + sel.b.size;
+  const totalEditPilihan = selEdit.e.size + selEdit.k.size + selEdit.a.size + selEdit.b.size;
 
   const bukaDialogBaru = () => {
     setNama("");
     setJabatan("");
+    setSandi("");
     setRole("AUDITEE");
     setSel({ e: new Set(), k: new Set(), a: new Set(), b: new Set() });
     setOpen(true);
@@ -211,6 +218,10 @@ export function WebUsers() {
   const simpan = async () => {
     if (!nama.trim() || !jabatan.trim()) {
       toast.error("Nama dan jabatan wajib diisi");
+      return;
+    }
+    if (sandi.trim().length < 6) {
+      toast.error("Kata sandi wajib dibuat saat pendaftaran — minimal 6 karakter");
       return;
     }
     if (role !== "ADMIN" && totalPilihan === 0) {
@@ -223,6 +234,7 @@ export function WebUsers() {
         nama: nama.trim(),
         jabatan: jabatan.trim(),
         role,
+        password: sandi.trim(),
         bindings: jadiPayload(sel),
       });
       qc.invalidateQueries({ queryKey: qk.users });
@@ -236,14 +248,48 @@ export function WebUsers() {
     }
   };
 
-  const simpanBinding = async () => {
+  /** Buka dialog UBAH DATA — semua isian diprefill dari data user terpilih. */
+  const bukaUbah = (u: { id: string; nama: string; jabatan?: string; role: string; bindingIds?: BindingIds[] }) => {
+    setEditTarget({ id: u.id, nama: u.nama, role: u.role });
+    setEditNama(u.nama);
+    setEditJabatan(u.jabatan ?? "");
+    setEditRole((u.role as Role) ?? "AUDITEE");
+    setEditSandi("");
+    setSelEdit(dariIds(u.bindingIds));
+  };
+
+  /** Simpan perubahan data user (PATCH /api/users/[id]): nama, jabatan,
+   *  role, kata sandi baru (opsional) dan binding unit. */
+  const simpanEdit = async () => {
     if (!editTarget) return;
+    if (!editNama.trim()) {
+      toast.error("Nama tidak boleh kosong");
+      return;
+    }
+    if (!editJabatan.trim()) {
+      toast.error("Jabatan wajib diisi");
+      return;
+    }
+    if (editSandi.trim() && editSandi.trim().length < 6) {
+      toast.error("Kata sandi baru minimal 6 karakter");
+      return;
+    }
+    if (editRole !== "ADMIN" && totalEditPilihan === 0) {
+      toast.error("User lapangan wajib punya minimal satu binding unit");
+      return;
+    }
     setMenyimpan(true);
     try {
-      await api.patch(`/api/users/${editTarget.id}`, { bindings: jadiPayload(selEdit) });
+      await api.patch(`/api/users/${editTarget.id}`, {
+        nama: editNama.trim(),
+        jabatan: editJabatan.trim(),
+        role: editRole,
+        ...(editSandi.trim() ? { password: editSandi.trim() } : {}),
+        bindings: editRole === "ADMIN" ? [] : jadiPayload(selEdit),
+      });
       qc.invalidateQueries({ queryKey: qk.users });
       qc.invalidateQueries({ queryKey: qk.aktivitas });
-      toast.success(`Binding unit ${editTarget.nama} diperbarui`);
+      toast.success(`Data user ${editNama} diperbarui${editSandi.trim() ? " — kata sandi baru berlaku pada login berikutnya" : ""}`);
       setEditTarget(null);
     } catch (e) {
       toast.error((e as Error).message);
@@ -251,257 +297,3 @@ export function WebUsers() {
       setMenyimpan(false);
     }
   };
-
-  const setStatus = async (id: string, status: "ACTIVE" | "REJECTED", namaU: string) => {
-    try {
-      await api.patch(`/api/users/${id}`, { status });
-      qc.invalidateQueries({ queryKey: qk.users });
-      qc.invalidateQueries({ queryKey: qk.aktivitas });
-      toast.success(status === "ACTIVE" ? `${namaU} disetujui — akun aktif` : `${namaU} ditolak`);
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  };
-
-  /** HAPUS PERMANEN akun user (API DELETE /api/users/[id]) —
-   *  server menolak bila akun masih terkait data pemeriksaan/temuan. */
-  const hapusUser = async () => {
-    if (!hapusTarget) return;
-    setMenghapus(true);
-    try {
-      await api.del(`/api/users/${hapusTarget.id}`);
-      qc.invalidateQueries({ queryKey: qk.users });
-      qc.invalidateQueries({ queryKey: qk.aktivitas });
-      toast.success(`Akun ${hapusTarget.nama} dihapus permanen dari sistem`);
-      setHapusTarget(null);
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setMenghapus(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard title="Total Pengguna" value={users.length} icon={<UserPlus className="h-4 w-4" />} />
-        <StatCard title="Aktif" value={aktif.length} sub="auditor, auditee & admin" icon={<UserCheck className="h-4 w-4" />} accent="sky" />
-        <StatCard title="Menunggu Persetujuan" value={pending.length} sub="perlu keputusan admin" icon={<ShieldCheck className="h-4 w-4" />} accent="gold" />
-      </div>
-
-      {pending.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
-          <h3 className="text-[13px] font-bold text-amber-800">Persetujuan Pendaftaran ({pending.length})</h3>
-          <p className="text-[11px] text-amber-700">Pengguna yang mendaftar perlu disetujui admin sebelum akses aktif. Binding unit mengikuti data pendaftaran.</p>
-          <div className="mt-3 grid gap-2 md:grid-cols-3">
-            {pending.map((u) => (
-              <div key={u.id} className="rounded-lg border border-amber-200 bg-white p-3">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-forest text-[11px] font-bold text-white">{u.nama.split(" ").map((w) => w[0]).join("")}</span>
-                  <div className="min-w-0">
-                    <p className="truncate text-[12.5px] font-bold text-slate-800">{u.nama}</p>
-                    <p className="truncate text-[10px] text-slate-500">{u.jabatan}</p>
-                  </div>
-                  <span className={cn("ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold", ROLE_STYLE[u.role])}>{u.role}</span>
-                </div>
-                <p className="mt-1.5 truncate text-[10px] text-slate-400">@{u.username}</p>
-                <p className="text-[10px] text-slate-400">Mendaftar: {fmtTanggal(u.createdAt)}</p>
-                <div className="mt-2 flex gap-2">
-                  <Button size="sm" onClick={() => setStatus(u.id, "ACTIVE", u.nama)} className="h-8 flex-1 bg-forest text-[11px] hover:bg-forest-deep">
-                    <Check className="mr-1 h-3.5 w-3.5" /> Setujui
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setStatus(u.id, "REJECTED", u.nama)} className="h-8 flex-1 border-red-200 text-[11px] text-red-600">
-                    <X className="mr-1 h-3.5 w-3.5" /> Tolak
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="rounded-xl border bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-[13px] font-bold text-slate-800">Daftar Pengguna</h3>
-            <p className="text-[11px] text-slate-500">Pendaftaran hanya oleh admin — tanpa email; user bisa diberi lebih dari satu estate/kebun/afdeling/perumahan (centang)</p>
-          </div>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={bukaDialogBaru} className="bg-forest text-[12px] font-semibold hover:bg-forest-deep"><UserPlus className="mr-1.5 h-4 w-4" /> Tambah User</Button>
-            </DialogTrigger>
-            <DialogContent className="rounded-xl sm:max-w-[520px]">
-              <DialogHeader>
-                <DialogTitle className="text-[15px]">Tambah Pengguna Baru</DialogTitle>
-                <DialogDescription className="text-[12px]">
-                  Tanpa email — nama pengguna dibuat otomatis dari nama. Akun langsung aktif; sandi awal <b>rumahlayak123</b>. Centang unit yang boleh diakses — boleh lebih dari satu (centang induk mencakup seluruh isinya; centang level lebih rinci untuk membatasi).
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-3 py-2">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-[11px]">Nama Lengkap</Label>
-                    <Input value={nama} onChange={(e) => setNama(e.target.value)} className="mt-1 h-9 text-[12px]" placeholder="cth: Samsul Bahri" />
-                  </div>
-                  <div>
-                    <Label className="text-[11px]">Jabatan</Label>
-                    <Input value={jabatan} onChange={(e) => setJabatan(e.target.value)} className="mt-1 h-9 text-[12px]" placeholder="cth: Asisten Afdeling I" />
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-[11px]">Role / Akses</Label>
-                  <Select value={role} onValueChange={(v) => setRole(v as Role)}>
-                    <SelectTrigger className="mt-1 h-9 text-[12px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="AUDITOR">AUDITOR — pemeriksa</SelectItem>
-                      <SelectItem value="AUDITEE">AUDITEE — tindak lanjut</SelectItem>
-                      <SelectItem value="ADMIN">ADMIN — portal web</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {role !== "ADMIN" ? (
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <Label className="text-[11px]">Binding Unit (boleh pilih banyak)</Label>
-                      <span className="rounded bg-forest-soft px-1.5 py-0.5 text-[9.5px] font-bold text-forest">{totalPilihan} tercentang</span>
-                    </div>
-                    {master ? (
-                      <div className="mt-1">
-                        <PohonBinding master={master} sel={sel} setSel={setSel} />
-                      </div>
-                    ) : (
-                      <p className="mt-1 text-[11px] text-slate-400">Memuat data master...</p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="rounded-md border bg-slate-50 px-2.5 py-2 text-[11px] text-slate-500">ADMIN corporate — tanpa binding (melihat seluruh kebun)</div>
-                )}
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)} className="h-9 text-[12px]">Batal</Button>
-                <Button onClick={simpan} disabled={menyimpan} className="h-9 bg-forest text-[12px] hover:bg-forest-deep">
-                  {menyimpan ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null} Simpan User
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <div className="mt-3 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50">
-                <TableHead className="text-[11px]">Nama</TableHead>
-                <TableHead className="text-[11px]">Nama Pengguna</TableHead>
-                <TableHead className="text-[11px]">Role</TableHead>
-                <TableHead className="text-[11px]">Jabatan</TableHead>
-                <TableHead className="text-[11px]">Binding Unit</TableHead>
-                <TableHead className="text-[11px]">Terdaftar</TableHead>
-                <TableHead className="text-[11px]">Status</TableHead>
-                <TableHead className="text-[11px]">Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && (
-                <TableRow><TableCell colSpan={8} className="py-6 text-center text-[12px] text-slate-400"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> Memuat...</TableCell></TableRow>
-              )}
-              {users.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell className="text-[12px] font-semibold text-slate-700">{u.nama}</TableCell>
-                  <TableCell className="font-mono text-[11.5px] text-slate-500">@{u.username}</TableCell>
-                  <TableCell><span className={cn("rounded px-1.5 py-0.5 text-[10px] font-bold", ROLE_STYLE[u.role])}>{u.role}</span></TableCell>
-                  <TableCell className="text-[11.5px] text-slate-600">{u.jabatan}</TableCell>
-                  <TableCell className="max-w-[240px] text-[11px] text-slate-600">
-                    {u.bindings?.length ? u.bindings.join(" • ") : (u.kebunNama ?? "—")}
-                  </TableCell>
-                  <TableCell className="text-[11.5px] text-slate-500">{fmtTanggal(u.createdAt)}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={cn("text-[10px]", u.status === "ACTIVE" ? "border-green-200 bg-green-50 text-green-700" : u.status === "PENDING" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-600")}>
-                      {u.status === "ACTIVE" ? "AKTIF" : u.status === "PENDING" ? "MENUNGGU" : "DITOLAK"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {u.role !== "ADMIN" && (
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-[10px] text-forest"
-                          onClick={() => {
-                            setEditTarget({ id: u.id, nama: u.nama, role: u.role });
-                            setSelEdit(dariIds(u.bindingIds));
-                          }}
-                        >
-                          Ubah Binding
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 border-red-200 px-2 text-[10px] text-red-600 hover:bg-red-50"
-                          onClick={() => setHapusTarget({ id: u.id, nama: u.nama, username: u.username })}
-                        >
-                          <Trash2 className="mr-1 h-3 w-3" /> Hapus
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
-          Tombol <b>Hapus</b> menghapus akun secara permanen (hanya akun tanpa data pemeriksaan/temuan). Akun yang masih terkait data sebaiknya nonaktifkan lewat status DITOLAK agar riwayat papan &amp; audit trail tetap utuh.
-        </p>
-      </div>
-
-      {/* Dialog konfirmasi HAPUS user permanen */}
-      <AlertDialog open={!!hapusTarget} onOpenChange={(v) => !v && setHapusTarget(null)}>
-        <AlertDialogContent className="rounded-xl sm:max-w-[430px]">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[15px]">Hapus Akun — {hapusTarget?.nama}?</AlertDialogTitle>
-            <AlertDialogDescription className="text-[12px]">
-              Akun <b>@{hapusTarget?.username}</b> beserta binding unitnya akan dihapus permanen dari sistem. Tindakan ini tidak dapat dibatalkan.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="h-9 text-[12px]">Batal</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={hapusUser}
-              disabled={menghapus}
-              className="h-9 bg-red-600 text-[12px] hover:bg-red-700"
-            >
-              {menghapus ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
-              {menghapus ? "Menghapus..." : "Ya, Hapus Permanen"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Dialog ubah binding user eksisting */}
-      <Dialog open={!!editTarget} onOpenChange={(v) => !v && setEditTarget(null)}>
-        <DialogContent className="rounded-xl sm:max-w-[520px]">
-          <DialogHeader>
-            <DialogTitle className="text-[15px]">Ubah Binding Unit — {editTarget?.nama}</DialogTitle>
-            <DialogDescription className="text-[12px]">
-              Centang unit yang boleh diakses user ini. Boleh lebih dari satu estate/kebun/afdeling/perumahan; perubahan berlaku pada login berikutnya.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-1">
-            {master ? (
-              <PohonBinding master={master} sel={selEdit} setSel={setSelEdit} />
-            ) : (
-              <p className="text-[11px] text-slate-400">Memuat data master...</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditTarget(null)} className="h-9 text-[12px]">Batal</Button>
-            <Button onClick={simpanBinding} disabled={menyimpan} className="h-9 bg-forest text-[12px] hover:bg-forest-deep">
-              {menyimpan ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null} Simpan Binding
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
