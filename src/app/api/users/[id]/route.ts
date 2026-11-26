@@ -4,6 +4,49 @@ import type { BindingInput } from "../route";
 
 export const runtime = "nodejs";
 
+/** DELETE: admin menghapus PERMANEN akun user dari sistem (tombol "Hapus" di
+ *  halaman Pendaftaran User portal web). Proteksi integritas data:
+ *   • hanya ADMIN yang boleh;
+ *   • tidak bisa menghapus akunnya sendiri;
+ *   • akun yang masih TERKAIT DATA transaksional (pemeriksaan dibuat, temuan
+ *     yang dipicu, tindak lanjut yang ditulis) ditolak — gunakan status
+ *     REJECTED (nonaktif) agar riwayat papan/audit trail tetap utuh;
+ *   • bila bersih: binding ikut terhapus (onDelete Cascade) dan log audit
+ *     lama menjadi anonim (userId SetNull), lalu penghapusan dicatat di log. */
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const me = await getSessionUser();
+  if (!me) return unauthorized();
+  if (me.role !== "ADMIN") return forbidden("Manajemen pengguna hanya untuk ADMIN");
+
+  const { id } = await params;
+  if (id === me.id) return badRequest("Tidak dapat menghapus akun Anda sendiri");
+
+  const target = await db.user.findUnique({
+    where: { id },
+    include: {
+      _count: { select: { inspeksi: true, temuanPic: true, tindakLanjut: true } },
+    },
+  });
+  if (!target) return badRequest("User tidak ditemukan");
+
+  const { inspeksi, temuanPic, tindakLanjut } = target._count;
+  if (inspeksi > 0 || temuanPic > 0 || tindakLanjut > 0) {
+    return badRequest(
+      `Akun ${target.nama} masih terkait data (${inspeksi} pemeriksaan, ${temuanPic} temuan, ${tindakLanjut} tindak lanjut) — nonaktifkan dengan status DITOLAK, jangan dihapus, agar riwayat tetap utuh.`,
+    );
+  }
+
+  await db.user.delete({ where: { id } });
+  await db.aksiLog.create({
+    data: {
+      userId: me.id,
+      aktor: me.nama,
+      aksi: `Akun ${target.nama} (@${target.username}) dihapus permanen oleh admin`,
+    },
+  });
+  return Response.json({ hapus: true });
+}
+
 /** PATCH: admin menyetujui / menolak / mengubah data & binding pendaftaran user. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const me = await getSessionUser();
