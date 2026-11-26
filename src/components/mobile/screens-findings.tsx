@@ -4,8 +4,9 @@ import { useStore, namaAfdeling, namaBarak } from "@/lib/store";
 import { api } from "@/lib/api";
 import { qk, useInspeksi, useRefresh, useTemuan } from "@/lib/queries";
 import { fmtKoor, fmtTanggal, fmtTanggalWaktu, kartuStatus } from "@/lib/utils-rl";
-import { ambilFotoDenganWatermark, lokasiSaatIni } from "@/lib/perangkat";
+import { lokasiSaatIni } from "@/lib/perangkat";
 import { ScreenHeader } from "@/components/mobile/frame";
+import { KameraBawaan } from "@/components/mobile/kamera";
 import { LevelBadge, SlaInfo, StatusTemuanBadge } from "@/components/rl-bits";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -98,7 +99,8 @@ export function FindingDetailScreen() {
   const [uraian, setUraian] = useState("");
   const [foto, setFoto] = useState<{ dataUrl: string; lat: number; lng: number } | undefined>(undefined);
   const [mengirim, setMengirim] = useState(false);
-  const [mengambilFoto, setMengambilFoto] = useState(false);
+  // Kamera bawaan aplikasi (overlay getUserMedia): label watermark + koordinat lampiran
+  const [kamera, setKamera] = useState<{ judul: string; sub: string; lat: number; lng: number } | null>(null);
 
   if (!session) return null;
   const f = findings.find((x) => x.id === activeFindingId);
@@ -112,28 +114,27 @@ export function FindingDetailScreen() {
   const sebagaiAuditee = session.role === "AUDITEE" && f.auditeeId === session.id;
   const sebagaiAuditor = session.role === "AUDITOR" || session.role === "ADMIN";
 
-  // FOTO BUKTI ASLI dari kamera + GPS ASLI perangkat; GPS gagal → koordinat
-  // perumahan dari master data (bukan angka acak).
-  const ambilFotoBukti = async () => {
-    if (mengambilFoto) return;
-    setMengambilFoto(true);
-    try {
-      const lok = await lokasiSaatIni().catch(() => null);
-      const barak = master?.baraks.find((b) => b.id === f.barakId);
-      const lat = lok?.lat ?? barak?.koordinat.lat ?? 0;
-      const lng = lok?.lng ?? barak?.koordinat.lng ?? 0;
-      const dataUrl = await ambilFotoDenganWatermark(
-        `BUKTI PERBAIKAN • ${f.kode}`,
-        `${namaBarak(f.barakId)} • ${fmtKoor(lat, lng)} • ${new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
-      );
-      setFoto({ dataUrl, lat, lng });
-      toast.success(lok ? "Foto bukti + GPS asli perangkat terlampir" : "Foto bukti terlampir — GPS tidak tersedia, memakai koordinat perumahan");
-    } catch (e) {
-      const pesan = (e as Error).message;
-      if (pesan && !/dibatalkan/i.test(pesan)) toast.error(pesan);
-    } finally {
-      setMengambilFoto(false);
-    }
+  // FOTO BUKTI ASLI dari KAMERA BAWAAN APLIKASI + GPS ASLI perangkat;
+  // GPS gagal → koordinat perumahan dari master data (bukan angka acak).
+  const bukaKameraBukti = async () => {
+    const lok = await lokasiSaatIni().catch(() => null);
+    const barak = master?.baraks.find((b) => b.id === f.barakId);
+    const lat = lok?.lat ?? barak?.koordinat.lat ?? 0;
+    const lng = lok?.lng ?? barak?.koordinat.lng ?? 0;
+    setKamera({
+      judul: `BUKTI PERBAIKAN • ${f.kode}`,
+      sub: `${namaBarak(f.barakId)} • ${fmtKoor(lat, lng)} • ${new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
+      lat,
+      lng,
+    });
+    if (lok) toast.info("GPS asli perangkat terdeteksi — akan menempel pada foto bukti");
+  };
+
+  const simpanFotoBukti = (dataUrl: string) => {
+    if (!kamera) return;
+    setFoto({ dataUrl, lat: kamera.lat, lng: kamera.lng });
+    setKamera(null);
+    toast.success("Foto bukti kamera bawaan aplikasi terlampir dengan watermark koordinat & waktu");
   };
 
   const tandaiProgres = async () => {
@@ -258,9 +259,9 @@ export function FindingDetailScreen() {
             <p className="mt-2 text-[10px] font-bold text-slate-500">LAMPIRKAN HASIL PERBAIKAN</p>
             <Textarea value={uraian} onChange={(e) => setUraian(e.target.value)} placeholder="Uraikan pekerjaan yang dilakukan, material, dan hasilnya..." className="mt-1 min-h-[64px] bg-white text-[11.5px]" />
             <div className="mt-2 flex gap-2">
-              <Button variant="outline" onClick={ambilFotoBukti} disabled={mengambilFoto} className="h-10 flex-1 border-dashed bg-white text-[11.5px] text-forest">
-                {mengambilFoto ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Camera className="mr-1.5 h-4 w-4" />}
-                {mengambilFoto ? "Membuka kamera..." : foto ? "Foto Terlampir (ganti)" : "Ambil Foto Bukti (Kamera)"}
+              <Button variant="outline" onClick={() => void bukaKameraBukti()} className="h-10 flex-1 border-dashed bg-white text-[11.5px] text-forest">
+                <Camera className="mr-1.5 h-4 w-4" />
+                {foto ? "Foto Terlampir (ganti)" : "Ambil Foto Bukti (Kamera Bawaan)"}
               </Button>
             </div>
             {foto && (
@@ -297,6 +298,8 @@ export function FindingDetailScreen() {
           </AlertDialog>
         )}
       </div>
+      {/* Overlay kamera bawaan aplikasi (getUserMedia) — menutupi seluruh layar */}
+      {kamera && <KameraBawaan judul={kamera.judul} sub={kamera.sub} onHasil={simpanFotoBukti} onTutup={() => setKamera(null)} />}
     </div>
   );
 }
