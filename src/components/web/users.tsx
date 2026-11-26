@@ -11,11 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Building2, Check, ChevronDown, ChevronRight, Layers3, Loader2, ShieldCheck, TreePalm, UserCheck, UserPlus, Warehouse, X } from "lucide-react";
+import { Building2, Check, ChevronDown, ChevronRight, Layers3, Loader2, ShieldCheck, Trash2, TreePalm, UserCheck, UserPlus, Warehouse, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MasterData } from "@/lib/types";
 import type { Role } from "@/lib/types";
@@ -193,6 +194,10 @@ export function WebUsers() {
   const [editTarget, setEditTarget] = useState<{ id: string; nama: string; role: string } | null>(null);
   const [selEdit, setSelEdit] = useState<SetBinding>({ e: new Set(), k: new Set(), a: new Set(), b: new Set() });
 
+  // Dialog HAPUS user permanen (tombol di kolom Aksi tabel)
+  const [hapusTarget, setHapusTarget] = useState<{ id: string; nama: string; username: string } | null>(null);
+  const [menghapus, setMenghapus] = useState(false);
+
   const totalPilihan = sel.e.size + sel.k.size + sel.a.size + sel.b.size;
 
   const bukaDialogBaru = () => {
@@ -255,6 +260,24 @@ export function WebUsers() {
       toast.success(status === "ACTIVE" ? `${namaU} disetujui — akun aktif` : `${namaU} ditolak`);
     } catch (e) {
       toast.error((e as Error).message);
+    }
+  };
+
+  /** HAPUS PERMANEN akun user (API DELETE /api/users/[id]) —
+   *  server menolak bila akun masih terkait data pemeriksaan/temuan. */
+  const hapusUser = async () => {
+    if (!hapusTarget) return;
+    setMenghapus(true);
+    try {
+      await api.del(`/api/users/${hapusTarget.id}`);
+      qc.invalidateQueries({ queryKey: qk.users });
+      qc.invalidateQueries({ queryKey: qk.aktivitas });
+      toast.success(`Akun ${hapusTarget.nama} dihapus permanen dari sistem`);
+      setHapusTarget(null);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setMenghapus(false);
     }
   };
 
@@ -399,17 +422,27 @@ export function WebUsers() {
                   </TableCell>
                   <TableCell>
                     {u.role !== "ADMIN" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-[10px] text-forest"
-                        onClick={() => {
-                          setEditTarget({ id: u.id, nama: u.nama, role: u.role });
-                          setSelEdit(dariIds(u.bindingIds));
-                        }}
-                      >
-                        Ubah Binding
-                      </Button>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-[10px] text-forest"
+                          onClick={() => {
+                            setEditTarget({ id: u.id, nama: u.nama, role: u.role });
+                            setSelEdit(dariIds(u.bindingIds));
+                          }}
+                        >
+                          Ubah Binding
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 border-red-200 px-2 text-[10px] text-red-600 hover:bg-red-50"
+                          onClick={() => setHapusTarget({ id: u.id, nama: u.nama, username: u.username })}
+                        >
+                          <Trash2 className="mr-1 h-3 w-3" /> Hapus
+                        </Button>
+                      </div>
                     )}
                   </TableCell>
                 </TableRow>
@@ -417,7 +450,33 @@ export function WebUsers() {
             </TableBody>
           </Table>
         </div>
+        <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
+          Tombol <b>Hapus</b> menghapus akun secara permanen (hanya akun tanpa data pemeriksaan/temuan). Akun yang masih terkait data sebaiknya nonaktifkan lewat status DITOLAK agar riwayat papan &amp; audit trail tetap utuh.
+        </p>
       </div>
+
+      {/* Dialog konfirmasi HAPUS user permanen */}
+      <AlertDialog open={!!hapusTarget} onOpenChange={(v) => !v && setHapusTarget(null)}>
+        <AlertDialogContent className="rounded-xl sm:max-w-[430px]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[15px]">Hapus Akun — {hapusTarget?.nama}?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[12px]">
+              Akun <b>@{hapusTarget?.username}</b> beserta binding unitnya akan dihapus permanen dari sistem. Tindakan ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-9 text-[12px]">Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={hapusUser}
+              disabled={menghapus}
+              className="h-9 bg-red-600 text-[12px] hover:bg-red-700"
+            >
+              {menghapus ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
+              {menghapus ? "Menghapus..." : "Ya, Hapus Permanen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog ubah binding user eksisting */}
       <Dialog open={!!editTarget} onOpenChange={(v) => !v && setEditTarget(null)}>
