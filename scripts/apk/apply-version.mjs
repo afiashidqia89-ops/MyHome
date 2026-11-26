@@ -63,6 +63,59 @@ writeFileSync(gradlePath, gradle);
 console.log(`versionName : ${sebelumName} → "${versionName}"`);
 console.log(`versionCode : ${sebelumCode} → ${versionCode} (naik otomatis tiap build)`);
 
+// 3b. Patch android/app/src/main/AndroidManifest.xml — tambahkan izin
+//     GPS & kamera. `npx cap add android` menghasilkan manifest yang
+//     HANYA memuat izin INTERNET, dan plugin @capacitor/geolocation
+//     TIDAK mendeklarasikan izin lokasi di manifestnya sendiri
+//     (terverifikasi: manifest plugin kosong). Tanpa patch ini Android
+//     menolak permintaan izin SECARA DIAM-DIAM — dialog "izinkan
+//     lokasi/kamera" tidak pernah muncul di APK, tagging GPS selalu
+//     gagal dan kamera in-app (getUserMedia) tak bisa dibuka.
+//     Idempoten: izin yang sudah ada tidak ditulis ulang.
+const manifestPath = join(root, "android", "app", "src", "main", "AndroidManifest.xml");
+if (existsSync(manifestPath)) {
+  const IZIN = [
+    // GPS — tagging koordinat pemeriksaan (@capacitor/geolocation)
+    "android.permission.ACCESS_FINE_LOCATION",
+    "android.permission.ACCESS_COARSE_LOCATION",
+    // Kamera bawaan aplikasi — getUserMedia di WebView (VIDEO_CAPTURE);
+    // Capacitor otomatis memunculkan dialog runtime bila izin ini ada.
+    "android.permission.CAMERA",
+  ];
+  const FITUR = [
+    '<uses-feature android:name="android.hardware.location.gps" android:required="false" />',
+    '<uses-feature android:name="android.hardware.camera" android:required="false" />',
+  ];
+  let manifest = readFileSync(manifestPath, "utf8");
+  const perluIzin = IZIN.filter((i) => !manifest.includes(i));
+  const perluFitur = FITUR.filter((f) => !manifest.includes(f.match(/android:name="([^"]+)"/)[1]));
+  if (perluIzin.length || perluFitur.length) {
+    const idx = manifest.indexOf("<application");
+    if (idx === -1) {
+      console.warn("AndroidManifest tidak memuat <application> — izin TIDAK dipatch!");
+    } else {
+      const baris = [];
+      const ditambah = [];
+      for (const izin of perluIzin) {
+        baris.push(`    <uses-permission android:name="${izin}" />`);
+        ditambah.push(izin.split(".").pop());
+      }
+      for (const fitur of perluFitur) {
+        baris.push(`    ${fitur}`);
+        ditambah.push(fitur.match(/android:name="([^"]+)"/)[1].replace("android.hardware.", "fitur:"));
+      }
+      const blok = baris.join("\n\n");
+      manifest = `${manifest.slice(0, idx).trimEnd()}\n\n${blok}\n\n    ${manifest.slice(idx).trimStart()}`;
+      writeFileSync(manifestPath, manifest);
+      console.log(`Izin AndroidManifest: + ${ditambah.join(", ")}`);
+    }
+  } else {
+    console.log("Izin GPS & kamera sudah ada di AndroidManifest — tidak ada yang diubah.");
+  }
+} else {
+  console.warn("android/app/src/main/AndroidManifest.xml tidak ditemukan — izin TIDAK dipatch (jalankan npx cap add android dulu).");
+}
+
 // 4. Output untuk langkah lanjutan di GitHub Actions (nama file, Release)
 if (process.env.GITHUB_OUTPUT) {
   writeFileSync(
