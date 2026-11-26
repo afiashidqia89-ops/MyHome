@@ -71,7 +71,7 @@ export async function GET() {
       kebunNama: u.kebun?.nama ?? null, afdelingNama: u.afdeling?.nama ?? null,
       bindings: (petaBinding.get(u.id) ?? []).map((b) => b.label),
       bindingIds: (petaBinding.get(u.id) ?? []).map((b) => ({ estateId: b.estateId, kebunId: b.kebunId, afdelingId: b.afdelingId, barakId: b.barakId })),
-      status: u.status, createdAt: u.createdAt.toISOString(),
+      status: u.status, menuAkses: u.menuAkses ?? null, createdAt: u.createdAt.toISOString(),
     })),
   });
 }
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
   if (!me) return unauthorized();
   if (me.role !== "ADMIN") return forbidden("Manajemen pengguna hanya untuk ADMIN");
 
-  let body: { nama?: string; jabatan?: string; role?: string; kebunId?: string; afdelingId?: string; password?: string; bindings?: BindingInput[] };
+  let body: { nama?: string; jabatan?: string; role?: string; kebunId?: string; afdelingId?: string; password?: string; bindings?: BindingInput[]; menuAkses?: string[] };
   try {
     body = await req.json();
   } catch {
@@ -103,6 +103,14 @@ export async function POST(req: Request) {
   const sandiAwal = (body.password ?? "").trim();
   if (sandiAwal.length < 6) return badRequest("Kata sandi wajib dibuat saat pendaftaran (minimal 6 karakter)");
   if (!["AUDITOR", "AUDITEE", "ADMIN"].includes(role)) return badRequest("Peran tidak dikenal");
+
+  // Akses menu portal web (opsional): daftar id halaman yang boleh dibuka user.
+  // Tidak dikirim / kosong → null (menu mengikuti default perannya).
+  const MENU_WEB_VALID = new Set(["dashboard", "detail", "rekap", "peta", "master", "users", "pengaturan"]);
+  const menuPilihan = Array.isArray(body.menuAkses)
+    ? [...new Set(body.menuAkses.map((m) => String(m).trim()).filter((m) => MENU_WEB_VALID.has(m)))]
+    : null;
+  const menuAkses = menuPilihan && menuPilihan.length ? menuPilihan.join(",") : null;
 
   // Binding: checkbox multi level; fallback ke kolom tunggal bila ada
   const bindings = validasiBinding(body.bindings ?? []);
@@ -124,13 +132,13 @@ export async function POST(req: Request) {
 
   const pw = await hashPassword(sandiAwal);
   const user = await db.user.create({
-    data: { nama, username, jabatan, role, kebunId: null, afdelingId: null, passwordHash: pw, status: "ACTIVE" },
+    data: { nama, username, jabatan, role, kebunId: null, afdelingId: null, passwordHash: pw, status: "ACTIVE", menuAkses },
   });
   await simpanBinding(user.id, bindings);
   await db.aksiLog.create({
     data: {
       userId: me.id, aktor: me.nama,
-      aksi: `Mendaftarkan user baru ${nama} (${role}) sebagai "${username}"${bindings.length ? ` — ${bindings.length} binding unit` : ""}`,
+      aksi: `Mendaftarkan user baru ${nama} (${role}) sebagai "${username}"${bindings.length ? ` — ${bindings.length} binding unit` : ""}${menuAkses ? ` — akses menu: ${menuPilihan?.length} halaman` : " — akses menu default peran"}`,
     },
   });
 
