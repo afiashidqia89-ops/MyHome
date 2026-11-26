@@ -6,6 +6,7 @@ export type Mode = "mobile" | "web";
 
 export type MobileScreen =
   | "login"
+  | "beranda"
   | "peta"
   | "inspect-new"
   | "inspect"

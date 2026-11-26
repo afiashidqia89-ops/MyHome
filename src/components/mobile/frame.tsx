@@ -1,7 +1,7 @@
 "use client";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { ClipboardCheck, Flag, MapPinned, User, Wrench } from "lucide-react";
+import { ClipboardCheck, Flag, Home, MapPinned, User, Wrench } from "lucide-react";
 import type { MobileScreen, Role } from "@/lib/types";
 
 export function PhoneFrame({ children }: { children: React.ReactNode }) {
@@ -34,24 +34,27 @@ export function PhoneFrame({ children }: { children: React.ReactNode }) {
 //   • Temuan + Riwayat → satu tab "Temuan" (segmen TEMUAN / RIWAYAT di dalamnya)
 //   • Data (master, ekspor XLSX/JSON) → bagian "DATA & EKSPOR" di layar Profil
 //   • QR demo dihapus (bukan fitur nyata) — perumahan dipilih langsung dari daftar
-// Tanpa "Beranda" terpisah: layar pertama sesuai peran = beranda (tombol back HP
-// mengembalikan ke layar tersebut).
+// BERANDA jadi tab pertama semua peran: setelah login langsung masuk Beranda
+// (banner pemeriksaan pindah ke sini dari menu Profil).
 const NAV_AUDITOR: { id: MobileScreen; label: string; icon: React.ReactNode }[] = [
+  { id: "beranda", label: "Beranda", icon: <Home className="h-4 w-4" /> },
   { id: "inspect-new", label: "Periksa", icon: <ClipboardCheck className="h-4 w-4" /> },
-  { id: "peta", label: "Peta", icon: <MapPinned className="h-4 w-4" /> },
+  { id: "peta", label: "Peta Rumah", icon: <MapPinned className="h-4 w-4" /> },
   { id: "findings", label: "Temuan", icon: <Flag className="h-4 w-4" /> },
   { id: "profile", label: "Profil", icon: <User className="h-4 w-4" /> },
 ];
 
 // AUDITEE: fokus tindak lanjut temuan — tanpa Peta (alat inspeksi) & Data (ekspor)
 const NAV_AUDITEE: { id: MobileScreen; label: string; icon: React.ReactNode }[] = [
+  { id: "beranda", label: "Beranda", icon: <Home className="h-4 w-4" /> },
   { id: "findings", label: "Temuan", icon: <Flag className="h-4 w-4" /> },
   { id: "guideline", label: "Panduan", icon: <Wrench className="h-4 w-4" /> },
   { id: "profile", label: "Profil", icon: <User className="h-4 w-4" /> },
 ];
 
-// ADMIN: pemantauan corporate — 2 tab saja (admin memakai portal web)
+// ADMIN: pemantauan corporate — 3 tab saja (admin memakai portal web)
 const NAV_ADMIN: { id: MobileScreen; label: string; icon: React.ReactNode }[] = [
+  { id: "beranda", label: "Beranda", icon: <Home className="h-4 w-4" /> },
   { id: "findings", label: "Temuan", icon: <Flag className="h-4 w-4" /> },
   { id: "profile", label: "Profil", icon: <User className="h-4 w-4" /> },
 ];
@@ -62,10 +65,10 @@ export function navPerPeran(role: Role | undefined) {
   return NAV_AUDITOR;
 }
 
-/** Layar pertama setelah login sesuai fungsi peran: auditor langsung ke Peta,
- *  auditee & admin langsung ke daftar Temuan (tugas mereka). */
-export function layarAwal(role: Role | undefined): MobileScreen {
-  return role === "AUDITOR" ? "peta" : "findings";
+/** Layar pertama setelah login: BERANDA untuk semua peran (banner pemeriksaan
+ *  tampil di sini). Tombol back HP juga selalu kembali ke Beranda. */
+export function layarAwal(_role?: Role): MobileScreen {
+  return "beranda";
 }
 
 export function BottomNav() {
