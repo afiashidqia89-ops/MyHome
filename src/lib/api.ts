@@ -126,6 +126,19 @@ function simpanSnapshotHelper<T>(nama: Parameters<typeof simpanSnapshot>[0]): T 
 async function request<T>(metode: string, path: string, body?: unknown, init?: RequestInit): Promise<T> {
   if (!serverTerpasang()) throw new ApiError(0, EROR_SERVER_BELUM_DIATUR);
 
+  // ---- OFFLINE-FIRST: SIMPAN PEMERIKSAAN SELALU LOKAL DULU ----
+  // Simpan transaksi pemeriksaan TIDAK langsung dikirim ke server: data masuk
+  // antrean perangkat (rl_outbox) lalu terkirim lewat tombol "Sinkron Sekarang"
+  // di menu Profil (atau otomatis saat login/buka aplikasi). Ini menghilangkan
+  // error "kesalahan server (500)" saat menyimpan dan membuat simpan selalu
+  // instan walau sinyal lemah. Endpoint aman-antre lain (hapus inspeksi,
+  // tindak lanjut, verifikasi) saat OFFLINE tetap lewat jalur di bawah.
+  if (metode === "POST" && bisaAntre(metode, path)) {
+    const badan = { ...(body as Record<string, unknown>), id: idBaru() }; // ID client → kirim ulang aman (idempotent)
+    tambahAntrean({ metode: "POST", path, body: badan, label: labelOp(metode, path, badan) });
+    return balasanOffline<T>(metode, path, badan);
+  }
+
   const batasWaktu = metode === "GET" ? 15_000 : 60_000; // POST foto besar butuh waktu
   const kontrol = new AbortController();
   const timer = setTimeout(() => kontrol.abort(), batasWaktu);

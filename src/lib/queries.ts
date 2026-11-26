@@ -1,8 +1,9 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./api";
-import { bacaSnapshot, hapusSnapshot, sesiFallback, simpanSnapshot } from "./offline";
+import { bacaAntrean, bacaSnapshot, hapusSnapshot, sesiFallback, simpanSnapshot } from "./offline";
 import { bacaMasterCache, cacheKeMasterData, simpanMasterCache } from "./master-cache";
+import { useStore } from "./store";
 import type { AksiLog, Finding, Inspection, MasterData, SessionUser } from "./types";
 
 export const qk = {
@@ -73,17 +74,59 @@ export function useMaster(enabled = true) {
   });
 }
 
+// ---------- Gabungkan pemeriksaan yang masih MENGANTRE di perangkat ----------
+// Simpan = offline-first (masuk rl_outbox, terkirim lewat "Sinkron Sekarang").
+// Agar pemeriksaan buatan lokal langsung terlihat di Riwayat/Peta SEBELUM
+// sinkron, hasil antrean disisipkan sebagai baris Inspection sintetis
+// (sync "queued") di depan daftar dari server — dedupe berdasarkan ID.
+const BULAN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+function inspeksiDariAntrean(): Inspection[] {
+  return bacaAntrean()
+    .filter((o) => o.metode === "POST" && /^\/api\/inspeksi\/?$/.test(o.path))
+    .map((o) => {
+      const b = (o.body ?? {}) as {
+        id?: string; barakId?: string; picLabel?: string;
+        results?: Inspection["results"];
+      };
+      const { master, session } = useStore.getState();
+      const barak = master?.baraks.find((x) => x.id === b.barakId);
+      const waktu = new Date(o.dibuat);
+      return {
+        id: b.id ?? o.id,
+        kode: `OFFLINE-${o.id.slice(0, 6).toUpperCase()}`,
+        tanggal: waktu.toISOString().slice(0, 10),
+        minggu: Math.ceil(waktu.getDate() / 7),
+        periode: `${BULAN[waktu.getMonth()]} ${waktu.getFullYear()}`,
+        afdelingId: barak?.afdelingId ?? "",
+        barakId: b.barakId ?? "",
+        auditorId: session?.id ?? "",
+        picLabel: b.picLabel === "GM" ? ("GM" as const) : ("EM" as const),
+        results: b.results ?? [],
+        sync: "queued" as const,
+      } satisfies Inspection;
+    });
+}
+
+function gabungAntrean(daftar: Inspection[]): Inspection[] {
+  const antre = inspeksiDariAntrean();
+  if (!antre.length) return daftar;
+  const idsAntre = new Set(antre.map((a) => a.id));
+  return [...antre, ...daftar.filter((i) => !idsAntre.has(i.id))];
+}
+
 export function useInspeksi(enabled = true) {
   return useQuery({
     queryKey: qk.inspeksi,
     queryFn: async () => {
       try {
         const data = await api.get<{ inspeksi: Inspection[] }>("/api/inspeksi");
-        simpanSnapshot("inspeksi", data);
-        return data;
+        const gabung = { inspeksi: gabungAntrean(data.inspeksi) };
+        simpanSnapshot("inspeksi", gabung);
+        return gabung;
       } catch (e) {
         const snap = bacaSnapshot<{ inspeksi: Inspection[] }>("inspeksi");
-        if (offlineErr(e) && snap) return snap;
+        if (offlineErr(e) && snap) return { inspeksi: gabungAntrean(snap.inspeksi) };
         throw e;
       }
     },

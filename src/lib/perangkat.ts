@@ -151,19 +151,21 @@ export function beriWatermark(sumber: HTMLCanvasElement, judul: string, sub: str
   if (!ctx) throw new Error("Kanvas tidak didukung perangkat.");
   ctx.drawImage(sumber, 0, 0, W, H);
 
-  // Band watermark di bawah foto (menempel pada foto ASLI, bukan menggantinya)
-  const tinggiBand = Math.max(58, Math.round(H * 0.12));
-  ctx.fillStyle = "rgba(6, 20, 13, 0.85)";
+  // Band watermark di bawah foto (menempel pada foto ASLI, bukan menggantinya).
+  // KECIL (permintaan pengguna): ~4,5% tinggi foto (dulu 12% → terlalu besar),
+  // tidak menutupi detail lapangan namun tetap terbaca.
+  const tinggiBand = Math.max(30, Math.round(H * 0.045));
+  ctx.fillStyle = "rgba(6, 20, 13, 0.82)";
   ctx.fillRect(0, H - tinggiBand, W, tinggiBand);
-  const fs1 = Math.max(12, Math.round(tinggiBand * 0.3));
-  const fs2 = Math.max(10, Math.round(tinggiBand * 0.24));
+  const fs1 = Math.max(9, Math.round(tinggiBand * 0.30));
+  const fs2 = Math.max(8, Math.round(tinggiBand * 0.26));
   ctx.fillStyle = "#ffffff";
   ctx.font = `bold ${fs1}px Arial`;
-  ctx.fillText("RUMAHLAYAK • FOTO AUDIT TERGEOTAG", 14, H - tinggiBand + fs1 + 4);
+  ctx.fillText("RUMAHLAYAK • FOTO AUDIT TERGEOTAG", 10, H - tinggiBand + fs1 + 2);
   ctx.fillStyle = "#d4af37";
   ctx.font = `${fs2}px Arial`;
   const teks = `${judul} | ${sub}`;
-  ctx.fillText(teks.length > 80 ? `${teks.slice(0, 79)}…` : teks, 14, H - 8);
+  ctx.fillText(teks.length > 80 ? `${teks.slice(0, 79)}…` : teks, 10, H - 5);
 
   return c.toDataURL("image/jpeg", 0.72);
 }
