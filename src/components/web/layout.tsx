@@ -10,7 +10,7 @@ import type { WebPage } from "@/lib/types";
 // ---------- Menu web per peran (fungsi & kebutuhan masing-masing) ----------
 // adminOnly  : hanya ADMIN corporate
 // bukanAuditee : disembunyikan dari AUDITEE (alat perencanaan inspeksi auditor)
-const MENU: { id: WebPage; label: string; icon: React.ReactNode; desc: string; descAuditee?: string; adminOnly?: boolean; bukanAuditee?: boolean }[] = [
+export const MENU_WEB: { id: WebPage; label: string; icon: React.ReactNode; desc: string; descAuditee?: string; adminOnly?: boolean; bukanAuditee?: boolean }[] = [
   { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" />, desc: "Ringkasan kinerja kelayakan", descAuditee: "Tugas tindak lanjut saya" },
   { id: "detail", label: "Detail Pemeriksaan", icon: <ClipboardCheck className="h-4 w-4" />, desc: "Rincian hasil inspeksi & status perbaikan" },
   { id: "rekap", label: "Rekap Report", icon: <ClipboardList className="h-4 w-4" />, desc: "Papan Rekap Kamishibai" },
@@ -20,10 +20,17 @@ const MENU: { id: WebPage; label: string; icon: React.ReactNode; desc: string; d
   { id: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" />, desc: "Profil, ganti sandi & info aplikasi" },
 ];
 
-export function menuWebPerPeran(role: string | undefined) {
-  return MENU.filter((m) => {
-    if (m.adminOnly) return role === "ADMIN";
-    if (m.bukanAuditee) return role !== "AUDITEE";
+/** Menu portal web per peran + pembatasan akses menu (menuAkses user —
+ *  dipilih admin saat pendaftaran/ubah data). menuAkses null/kosong =
+ *  ikut default peran; berisi id halaman ("dashboard,detail,...") =
+ *  hanya halaman tersebut yang tampil (tetap dicek peran). */
+export function menuWebPerPeran(role: string | undefined, menuAkses?: string | null) {
+  const diizinkan = new Set((menuAkses ?? "").split(",").map((s) => s.trim()).filter(Boolean));
+  const dibatasi = diizinkan.size > 0;
+  return MENU_WEB.filter((m) => {
+    if (m.adminOnly && role !== "ADMIN") return false;
+    if (m.bukanAuditee && role === "AUDITEE") return false;
+    if (dibatasi && !diizinkan.has(m.id)) return false;
     return true;
   });
 }
@@ -32,7 +39,7 @@ export function WebLayout({ children }: { children: React.ReactNode }) {
   const { webPage, setWebPage, session, master } = useStore();
   const admin = session?.role === "ADMIN";
   const auditee = session?.role === "AUDITEE";
-  const menu = menuWebPerPeran(session?.role);
+  const menu = menuWebPerPeran(session?.role, session?.menuAkses);
   const aktif = menu.find((m) => m.id === webPage) ?? menu[0];
   const bindingLabel = admin
     ? "Corporate — seluruh kebun"
