@@ -57,7 +57,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (me.role !== "ADMIN") return forbidden("Manajemen pengguna hanya untuk ADMIN");
 
   const { id } = await params;
-  let body: { status?: string; role?: string; nama?: string; jabatan?: string; password?: string; kebunId?: string | null; afdelingId?: string | null; bindings?: BindingInput[] };
+  let body: { status?: string; role?: string; nama?: string; jabatan?: string; password?: string; kebunId?: string | null; afdelingId?: string | null; bindings?: BindingInput[]; menuAkses?: string[] };
   try {
     body = await req.json();
   } catch {
@@ -99,6 +99,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     data.passwordHash = await hashPassword(sandi);
   }
 
+  // Akses menu portal web: daftar id halaman yang boleh dibuka;
+  // array kosong → null (menu mengikuti default perannya).
+  if (Array.isArray(body.menuAkses)) {
+    const MENU_WEB_VALID = new Set(["dashboard", "detail", "rekap", "peta", "master", "users", "pengaturan"]);
+    const menuList = [...new Set(body.menuAkses.map((m) => String(m).trim()).filter((m) => MENU_WEB_VALID.has(m)))];
+    data.menuAkses = menuList.length ? menuList.join(",") : null;
+  }
+
   // Binding multi-level: hapus semua lalu tanam ulang (checkbox pendaftaran)
   if (Array.isArray(body.bindings)) {
     const bindings = body.bindings
@@ -131,6 +139,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (body.jabatan !== undefined) catatanUbah.push("jabatan");
   if (data.role) catatanUbah.push(`role → ${data.role}`);
   if (data.passwordHash) catatanUbah.push("kata sandi");
+  if (Array.isArray(body.menuAkses)) catatanUbah.push("akses menu web");
   const bagian: string[] = [];
   if (catatanUbah.length) bagian.push(catatanUbah.join(", "));
   if (Array.isArray(body.bindings)) bagian.push(`binding ${body.bindings.length} unit`);
