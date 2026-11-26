@@ -103,6 +103,7 @@ export function serializeUser(u: SessionUser) {
     afdelingNama: u.afdeling?.nama ?? null,
     bindings: [...new Set(labels)], // multi binding — bisa lebih dari satu kebun/afdeling
     status: u.status as "ACTIVE" | "PENDING" | "REJECTED",
+    menuAkses: u.menuAkses ?? null, // akses menu portal web — null = ikut default peran
     createdAt: u.createdAt.toISOString(),
   };
 }
