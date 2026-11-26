@@ -408,8 +408,9 @@ export function InspectItemScreen() {
   // dikompres + watermark koordinat tag & waktu. Tidak lagi membuka
   // aplikasi kamera eksternal HP.
   const bukaKamera = () => {
+    // Judul foto pakai NAMA KARTU (mis. "Hunian") — bukan kode internal "KMS-xx".
     setKamera({
-      judul: `${item.kartu} • ${item.id} ${item.label}`,
+      judul: `${kartu?.singkat ?? kartu?.nama ?? "Kartu"} • ${item.id} ${item.label}`,
       sub: `${namaBarakSingkat(namaBarak(barak.id), namaAfdeling(barak.afdelingId))} • ${fmtKoor(koordinat.lat, koordinat.lng)} • ${new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
     });
   };
