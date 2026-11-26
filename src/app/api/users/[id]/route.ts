@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { badRequest, forbidden, getSessionUser, unauthorized } from "@/lib/auth";
+import { badRequest, forbidden, getSessionUser, hashPassword, unauthorized } from "@/lib/auth";
 import type { BindingInput } from "../route";
 
 export const runtime = "nodejs";
@@ -47,14 +47,17 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   return Response.json({ hapus: true });
 }
 
-/** PATCH: admin menyetujui / menolak / mengubah data & binding pendaftaran user. */
+/** PATCH: admin menyetujui / menolak / MENGUBAH DATA pendaftaran user
+ *  (nama, jabatan, role, kata sandi baru, binding) — tombol "Ubah" di
+ *  halaman Pendaftaran User portal web. Proteksi: admin tidak bisa
+ *  mengubah role/status akunnya sendiri (mencegah terkunci dari portal). */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const me = await getSessionUser();
   if (!me) return unauthorized();
   if (me.role !== "ADMIN") return forbidden("Manajemen pengguna hanya untuk ADMIN");
 
   const { id } = await params;
-  let body: { status?: string; role?: string; jabatan?: string; kebunId?: string | null; afdelingId?: string | null; bindings?: BindingInput[] };
+  let body: { status?: string; role?: string; nama?: string; jabatan?: string; password?: string; kebunId?: string | null; afdelingId?: string | null; bindings?: BindingInput[] };
   try {
     body = await req.json();
   } catch {
@@ -63,6 +66,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const target = await db.user.findUnique({ where: { id } });
   if (!target) return badRequest("User tidak ditemukan");
+
+  // Proteksi akun sendiri: role & status akun admin yang sedang login
+  // tidak boleh diubah dari sini (mencegah terkunci dari portal web).
+  const ubahRole = body.role !== undefined && body.role !== target.role;
+  const ubahStatus = body.status !== undefined && body.status !== target.status;
+  if (id === me.id && (ubahRole || ubahStatus)) {
+    return badRequest("Tidak dapat mengubah role/status akun Anda sendiri — gunakan akun admin lain");
+  }
 
   const data: Record<string, unknown> = {};
   if (body.status && ["ACTIVE", "PENDING", "REJECTED"].includes(body.status)) {
@@ -76,7 +87,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       await db.userBinding.deleteMany({ where: { userId: id } });
     }
   }
+  if (body.nama !== undefined) {
+    const nm = body.nama.trim();
+    if (!nm) return badRequest("Nama tidak boleh kosong");
+    data.nama = nm;
+  }
   if (body.jabatan !== undefined) data.jabatan = body.jabatan.trim() || null;
+  if (body.password !== undefined && body.password.trim() !== "") {
+    const sandi = body.password.trim();
+    if (sandi.length < 6) return badRequest("Kata sandi minimal 6 karakter");
+    data.passwordHash = await hashPassword(sandi);
+  }
 
   // Binding multi-level: hapus semua lalu tanam ulang (checkbox pendaftaran)
   if (Array.isArray(body.bindings)) {
@@ -105,6 +126,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (Object.keys(data).length === 0) return badRequest("Tidak ada perubahan");
 
   const user = await db.user.update({ where: { id }, data });
+  const catatanUbah: string[] = [];
+  if (data.nama) catatanUbah.push("nama");
+  if (body.jabatan !== undefined) catatanUbah.push("jabatan");
+  if (data.role) catatanUbah.push(`role → ${data.role}`);
+  if (data.passwordHash) catatanUbah.push("kata sandi");
+  const bagian: string[] = [];
+  if (catatanUbah.length) bagian.push(catatanUbah.join(", "));
+  if (Array.isArray(body.bindings)) bagian.push(`binding ${body.bindings.length} unit`);
   await db.aksiLog.create({
     data: {
       userId: me.id, aktor: me.nama,
@@ -112,11 +141,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         ? `Pendaftaran ${user.nama} disetujui — akun aktif sesuai binding unitnya`
         : body.status === "REJECTED"
           ? `Pendaftaran ${user.nama} ditolak oleh admin`
-          : Array.isArray(body.bindings)
-            ? `Binding unit ${user.nama} diperbarui admin (${Array.isArray(body.bindings) ? body.bindings.length : 0} unit)`
+          : bagian.length
+            ? `Data akun ${user.nama} diperbarui admin (${bagian.join("; ")})`
             : `Data akun ${user.nama} diperbarui admin`,
     },
   });
 
-  return Response.json({ user: { id: user.id, status: user.status, role: user.role } });
+  return Response.json({ user: { id: user.id, nama: user.nama, status: user.status, role: user.role } });
 }

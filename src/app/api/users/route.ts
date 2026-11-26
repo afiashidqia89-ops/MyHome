@@ -97,7 +97,12 @@ export async function POST(req: Request) {
   const jabatan = (body.jabatan ?? "").trim();
   const role = body.role ?? "AUDITEE";
   if (!nama || !jabatan) return badRequest("Nama dan jabatan wajib diisi");
-  if (!["AUDITOR", "AUDITEE", "ADMIN"].includes(role)) return badRequest("Peran tidak dikenal");
+
+  // Kata sandi WAJIB dibuat admin saat pendaftaran (tidak ada lagi sandi
+  // default) — minimal 6 karakter.
+  const sandiAwal = (body.password ?? "").trim();
+  if (sandiAwal.length < 6) return badRequest("Kata sandi wajib dibuat saat pendaftaran (minimal 6 karakter)");
+  if (![["AUDITOR", "AUDITEE", "ADMIN"].includes(role)]) return badRequest("Peran tidak dikenal");
 
   // Binding: checkbox multi level; fallback ke kolom tunggal bila ada
   const bindings = validasiBinding(body.bindings ?? []);
@@ -117,7 +122,7 @@ export async function POST(req: Request) {
     username = `${dasar}${n++}`;
   }
 
-  const pw = await hashPassword(body.password?.trim() || "rumahlayak123");
+  const pw = await hashPassword(sandiAwal);
   const user = await db.user.create({
     data: { nama, username, jabatan, role, kebunId: null, afdelingId: null, passwordHash: pw, status: "ACTIVE" },
   });
@@ -129,6 +134,5 @@ export async function POST(req: Request) {
     },
   });
 
-  const sandiAwal = body.password?.trim() || "rumahlayak123";
   return Response.json({ user: { id: user.id, nama: user.nama, username: user.username, status: user.status }, sandiAwal }, { status: 201 });
 }
