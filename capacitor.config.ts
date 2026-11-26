@@ -30,6 +30,21 @@ const config: CapacitorConfig = {
     cleartext: true,
     androidScheme: "http",
   },
+  plugins: {
+    // SPLASH SCREEN — ikon+brand tampil saat APK dibuka (dari assets/splash.png
+    // yang diterapkan workflow lewat @capacitor/assets). autoHide setelah 1,5 s
+    // sehingga aplikasi langsung masuk Beranda tanpa penundaan terasa.
+    SplashScreen: {
+      launchShowDuration: 1500,
+      launchAutoHide: true,
+      launchFadeOutDuration: 400,
+      backgroundColor: "#14532D",
+      androidScaleType: "CENTER_CROP",
+      showSpinner: false,
+      splashFullScreen: true,
+      splashImmersive: true,
+    },
+  },
 };
 
 export default config;
