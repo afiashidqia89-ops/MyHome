@@ -4,8 +4,9 @@ import { useStore, namaAfdeling, namaBarak } from "@/lib/store";
 import { api } from "@/lib/api";
 import { qk, useInspeksi, useRefresh } from "@/lib/queries";
 import { fmtKoor, fmtTanggal, namaBarakSingkat } from "@/lib/utils-rl";
-import { ambilFotoDenganWatermark, lokasiSaatIni } from "@/lib/perangkat";
+import { lokasiSaatIni } from "@/lib/perangkat";
 import { ScreenHeader } from "@/components/mobile/frame";
+import { KameraBawaan } from "@/components/mobile/kamera";
 import { ChipStatus } from "@/components/rl-bits";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -210,6 +211,8 @@ export function InspectScreen() {
 
   // ---------- TAG KOORDINAT REAL (GPS perangkat, 1x per pemeriksaan rumah) ----------
   // Tanpa estimasi/acakan: GPS gagal → error jelas + tombol coba lagi.
+  // Di APK dialog izin lokasi muncul di sini (izin diminta eksplisit oleh
+  // lokasiSaatIni → checkPermissions/requestPermissions).
   const tagKoordinat = async () => {
     setMenandai(true);
     try {
@@ -369,7 +372,8 @@ export function InspectItemScreen() {
   const [uraian, setUraian] = useState("");
   const [mitigasi, setMitigasi] = useState("");
   const [noWO, setNoWO] = useState("");
-  const [mengambilFoto, setMengambilFoto] = useState(false);
+  // Kamera bawaan aplikasi: overlay getUserMedia — judul/sub dipakai untuk watermark foto
+  const [kamera, setKamera] = useState<{ judul: string; sub: string } | null>(null);
 
   if (!session || !master) return null;
   const item = master.checklist.find((c) => c.id === activeItemId);
@@ -386,23 +390,20 @@ export function InspectItemScreen() {
   // Koordinat = hasil TAGGING sekali di depan rumah (draft.gps) — bukan dari foto.
   const koordinat = draft.gps ?? { lat: barak.koordinat.lat, lng: barak.koordinat.lng, acc: 5 };
 
-  // FOTO ASLI dari kamera perangkat — dikompres + watermark koordinat tag & waktu.
-  const ambilFoto = async () => {
-    if (mengambilFoto) return;
-    setMengambilFoto(true);
-    try {
-      const dataUrl = await ambilFotoDenganWatermark(
-        `${item.kartu} • ${item.id} ${item.label}`,
-        `${namaBarakSingkat(namaBarak(barak.id), namaAfdeling(barak.afdelingId))} • ${fmtKoor(koordinat.lat, koordinat.lng)} • ${new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
-      );
-      addDraftFoto(item.id, { id: `f-${Date.now()}`, dataUrl, lat: koordinat.lat, lng: koordinat.lng, timestamp: new Date().toISOString(), label: item.label });
-      toast.success("Foto kamera tersimpan dengan watermark koordinat tag & waktu");
-    } catch (e) {
-      const pesan = (e as Error).message;
-      if (pesan && !/dibatalkan/i.test(pesan)) toast.error(pesan);
-    } finally {
-      setMengambilFoto(false);
-    }
+  // FOTO ASLI dari KAMERA BAWAAN APLIKASI (overlay getUserMedia) —
+  // dikompres + watermark koordinat tag & waktu. Tidak lagi membuka
+  // aplikasi kamera eksternal HP.
+  const bukaKamera = () => {
+    setKamera({
+      judul: `${item.kartu} • ${item.id} ${item.label}`,
+      sub: `${namaBarakSingkat(namaBarak(barak.id), namaAfdeling(barak.afdelingId))} • ${fmtKoor(koordinat.lat, koordinat.lng)} • ${new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
+    });
+  };
+
+  const simpanFoto = (dataUrl: string) => {
+    addDraftFoto(item.id, { id: `f-${Date.now()}`, dataUrl, lat: koordinat.lat, lng: koordinat.lng, timestamp: new Date().toISOString(), label: item.label });
+    setKamera(null);
+    toast.success("Foto kamera bawaan aplikasi tersimpan dengan watermark koordinat tag & waktu");
   };
 
   const catatTemuan = () => {
@@ -460,9 +461,9 @@ export function InspectItemScreen() {
 
         <div className="rounded-xl border bg-white p-3">
           <p className="text-[10px] font-bold text-slate-500">FOTO PEMERIKSAAN (WAJIB UNTUK STATUS MERAH)</p>
-          <Button onClick={ambilFoto} disabled={mengambilFoto} variant="outline" className="mt-2 h-10 w-full border-dashed text-[12px] text-forest">
-            {mengambilFoto ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Camera className="mr-1.5 h-4 w-4" />}
-            {mengambilFoto ? "Membuka kamera..." : "Ambil Foto (Kamera)"}
+          <Button onClick={bukaKamera} variant="outline" className="mt-2 h-10 w-full border-dashed text-[12px] text-forest">
+            <Camera className="mr-1.5 h-4 w-4" />
+            Ambil Foto (Kamera Bawaan Aplikasi)
           </Button>
           {r?.fotos.length ? (
             <div className="mt-2 grid grid-cols-3 gap-2">
@@ -522,6 +523,8 @@ export function InspectItemScreen() {
           </div>
         )}
       </div>
+      {/* Overlay kamera bawaan aplikasi (getUserMedia) — menutupi seluruh layar */}
+      {kamera && <KameraBawaan judul={kamera.judul} sub={kamera.sub} onHasil={simpanFoto} onTutup={() => setKamera(null)} />}
     </div>
   );
 }
