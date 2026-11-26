@@ -1,15 +1,76 @@
 "use client";
+import { useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import { useStore, namaAfdeling } from "@/lib/store";
 import { useInspeksi, useTemuan } from "@/lib/queries";
 import { fmtTanggal } from "@/lib/utils-rl";
+import { lokasiSaatIni } from "@/lib/perangkat";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, LocateFixed } from "lucide-react";
+import { toast } from "sonner";
+
+/** Kontrol di dalam peta: tombol "Lokasi Saya" — ambil GPS ASLI perangkat,
+ *  tampilkan titik biru posisi pengguna & geser peta ke situ.
+ *  (GPS gagal → pesan jelas; TANPA koordinat acak.) */
+function LokasiSaya() {
+  const map = useMap();
+  const [posisi, setPosisi] = useState<[number, number] | null>(null);
+  const [mencari, setMencari] = useState(false);
+
+  const cari = async () => {
+    setMencari(true);
+    try {
+      const lok = await lokasiSaatIni();
+      setPosisi([lok.lat, lok.lng]);
+      map.flyTo([lok.lat, lok.lng], Math.max(map.getZoom(), 16), { duration: 0.9 });
+      toast.success(`Lokasi perangkat ditemukan (±${lok.acc.toFixed(0)} m) — titik biru di peta`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setMencari(false);
+    }
+  };
+
+  return (
+    <>
+      {posisi && (
+        <CircleMarker
+          center={posisi}
+          radius={9}
+          pathOptions={{ color: "#ffffff", weight: 3, fillColor: "#2563EB", fillOpacity: 1 }}
+        >
+          <Popup>
+            <p className="text-[12px] font-bold text-slate-800">Posisi Perangkat Anda</p>
+            <p className="text-[11px] text-slate-500">GPS asli perangkat — bukan koordinat perumahan.</p>
+          </Popup>
+        </CircleMarker>
+      )}
+      <div className="leaflet-top leaflet-right">
+        <div className="leaflet-control leaflet-bar" style={{ margin: "10px 10px 0 0" }}>
+          <button
+            onClick={cari}
+            disabled={mencari}
+            aria-label="Tampilkan lokasi perangkat"
+            title="Tampilkan lokasi perangkat (GPS)"
+            style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", background: "#fff", cursor: "pointer" }}
+          >
+            {mencari ? (
+              <Loader2 className="h-4 w-4 animate-spin text-forest" />
+            ) : (
+              <LocateFixed className={`h-4 w-4 ${posisi ? "text-[#2563EB]" : "text-forest"}`} />
+            )}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
 
 /** Peta blok/perumahan milik kebun pengguna — pola aplikasi cek blok:
- *  tap titik di peta -> mulai pemeriksaan perumahan tersebut. */
+ *  tap titik di peta -> mulai pemeriksaan perumahan tersebut.
+ *  Tombol "Lokasi Saya" (kanan-atas peta) menampilkan posisi GPS perangkat. */
 export function PetaMobileKlien() {
   const { master, session, setInspectPreselect, setMobileScreen } = useStore();
   const { data: inspections = [] } = useInspeksi(true);
@@ -30,6 +91,7 @@ export function PetaMobileKlien() {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      <LokasiSaya />
       {baraks.map((b) => {
         const audits = inspections
           .filter((i) => i.barakId === b.id && i.results.some((r) => r.status !== null))
