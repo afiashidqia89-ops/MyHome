@@ -9,6 +9,7 @@ import { LoginScreen, ProfileScreen, LogoMark } from "@/components/mobile/screen
 import { InspectNewScreen, InspectScreen, InspectItemScreen } from "@/components/mobile/screens-inspect";
 import { FindingsScreen, FindingDetailScreen } from "@/components/mobile/screens-findings";
 import { GuidelineScreen } from "@/components/mobile/screens-data";
+import { BerandaScreen } from "@/components/mobile/screens-beranda";
 import { PetaBlokScreen } from "@/components/mobile/screens-peta";
 import { WebLayout, menuWebPerPeran } from "@/components/web/layout";
 import { WebDashboard } from "@/components/web/dashboard";
@@ -39,6 +40,8 @@ function MobileApp() {
   let screen: React.ReactNode;
   switch (mobileScreen) {
     case "login": screen = <LoginScreen />; break;
+    // BERANDA — layar pertama setelah login (banner pemeriksaan + status sinkron)
+    case "beranda": screen = <BerandaScreen />; break;
     case "peta": screen = <PetaBlokScreen />; break;
     case "inspect-new": screen = <InspectNewScreen />; break;
     case "inspect": screen = <InspectScreen />; break;
@@ -51,7 +54,7 @@ function MobileApp() {
     case "data": screen = <ProfileScreen />; break;
     case "guideline": screen = <GuidelineScreen />; break;
     case "profile": screen = <ProfileScreen />; break;
-    default: screen = layarAwal(session.role) === "peta" ? <PetaBlokScreen /> : <FindingsScreen />;
+    default: screen = <BerandaScreen />; // layarAwal() selalu Beranda — fallback aman
   }
   return (
     <>
@@ -78,15 +81,20 @@ function WebApp() {
   );
 }
 
-/** Login untuk mode Web (kartu di tengah halaman). */
+/** Login untuk mode Web — SAMPUL dua panel (kiri: brand/fitur, kanan: form).
+ *  Tanpa teks/akun demo (tampilan produksi). */
 function WebLogin() {
   const qc = useQueryClientSafe();
   const setSession = useStore((s) => s.setSession);
-  const [username, setUsername] = useState("hendra");
-  const [pw, setPw] = useState("demo123");
+  const [username, setUsername] = useState("");
+  const [pw, setPw] = useState("");
   const [kirim, setKirim] = useState(false);
 
   const masuk = async () => {
+    if (!username.trim() || !pw) {
+      toast.error("Isi nama pengguna dan kata sandi");
+      return;
+    }
     setKirim(true);
     try {
       const res = await api.post<{ user: SessionUser; token: string }>("/api/auth/login", { username, password: pw });
@@ -101,30 +109,71 @@ function WebLogin() {
     }
   };
 
+  const fitur = [
+    { judul: "Papan Kamishibai Digital", isi: "Status layak/tidak layak 27 item per perumahan, langsung dari lapangan" },
+    { judul: "GPS & Foto Tergeotag", isi: "Koordinat ditag 1x di depan rumah + foto kamera bawaan ber-watermark" },
+    { judul: "Temuan & Jalur Approval", isi: "Level 1–4: Swakelola kebun hingga GS Project / Corporate (Capex)" },
+    { judul: "Offline-First", isi: "Pemeriksaan disimpan aman di perangkat, dikirim lewat Sinkron Sekarang" },
+  ];
+
   return (
-    <div className="flex min-h-[70vh] items-center justify-center bg-slate-100 p-6">
-      <div className="w-full max-w-sm rounded-2xl border bg-white p-6 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <LogoMark size={40} />
+    <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-slate-100 via-white to-slate-200 p-4 md:p-8">
+      <div className="grid w-full max-w-4xl overflow-hidden rounded-3xl border bg-white shadow-xl lg:grid-cols-[1.1fr_1fr]">
+        {/* ---- PANEL BRAND (desktop) ---- */}
+        <div className="relative hidden flex-col justify-between bg-gradient-to-br from-forest via-forest-deep to-[#0b2416] p-8 text-white lg:flex">
           <div>
-            <p className="text-[14px] font-extrabold text-slate-800">RumahLayak Portal Web</p>
-            <p className="text-[10px] text-slate-500">Kamishibai Digital — login tanpa memilih kebun</p>
+            <div className="flex items-center gap-3">
+              <LogoMark size={52} />
+              <div>
+                <p className="text-[20px] font-extrabold leading-tight">RumahLayak</p>
+                <p className="text-[11px] text-gold">Portal Web — Kamishibai Emplasemen</p>
+              </div>
+            </div>
+            <p className="mt-6 text-[12.5px] leading-relaxed text-white/80">
+              Sistem pemeriksaan kelayakan perumahan &amp; fasilitas karyawan. Satu sumber data untuk papan audit, tindak lanjut perbaikan, dan pelaporan corporate.
+            </p>
+            <div className="mt-6 space-y-3">
+              {fitur.map((f) => (
+                <div key={f.judul} className="rounded-xl bg-white/10 px-3.5 py-2.5 ring-1 ring-white/15">
+                  <p className="text-[12px] font-bold text-gold">{f.judul}</p>
+                  <p className="mt-0.5 text-[10.5px] leading-relaxed text-white/75">{f.isi}</p>
+                </div>
+              ))}
+            </div>
           </div>
+          <p className="mt-6 text-[9.5px] text-white/50">Sesi JWT ter-enkripsi 7 hari • bcrypt password • audit trail penuh • PostgreSQL Neon</p>
         </div>
-        <div className="mt-4 space-y-3">
-          <div>
-            <Label className="text-[11px] text-slate-500">Nama Pengguna</Label>
-            <Input value={username} onChange={(e) => setUsername(e.target.value)} className="mt-1 h-10 text-[13px]" placeholder="cth: hendra" autoCapitalize="none" />
+
+        {/* ---- PANEL FORM ---- */}
+        <div className="flex flex-col justify-center p-6 md:p-10">
+          {/* Ringkasan brand untuk layar sempit */}
+          <div className="mb-6 flex items-center gap-3 lg:hidden">
+            <LogoMark size={44} />
+            <div>
+              <p className="text-[16px] font-extrabold text-slate-800">RumahLayak</p>
+              <p className="text-[10.5px] text-slate-500">Portal Web — Kamishibai Emplasemen</p>
+            </div>
           </div>
-          <div>
-            <Label className="text-[11px] text-slate-500">Kata Sandi</Label>
-            <Input type="password" value={pw} onChange={(e) => setPw(e.target.value)} className="mt-1 h-10 text-[13px]" onKeyDown={(e) => e.key === "Enter" && masuk()} />
+
+          <h1 className="text-[17px] font-extrabold text-slate-800">Masuk ke Portal</h1>
+          <p className="mt-1 text-[11.5px] text-slate-500">Gunakan akun yang didaftarkan admin — tanpa pendaftaran mandiri, tanpa email.</p>
+
+          <div className="mt-5 space-y-3">
+            <div>
+              <Label className="text-[11px] font-semibold text-slate-500">Nama Pengguna</Label>
+              <Input value={username} onChange={(e) => setUsername(e.target.value)} className="mt-1 h-11 text-[13px]" placeholder="username Anda" autoCapitalize="none" autoFocus />
+            </div>
+            <div>
+              <Label className="text-[11px] font-semibold text-slate-500">Kata Sandi</Label>
+              <Input type="password" value={pw} onChange={(e) => setPw(e.target.value)} className="mt-1 h-11 text-[13px]" placeholder="••••••••" onKeyDown={(e) => e.key === "Enter" && masuk()} />
+            </div>
+            <Button onClick={masuk} disabled={kirim} className="h-11 w-full bg-forest text-[13px] font-bold hover:bg-forest-deep">
+              {kirim ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Memverifikasi...</> : "Masuk Portal"}
+            </Button>
           </div>
-          <Button onClick={masuk} disabled={kirim} className="h-10 w-full bg-forest text-[13px] font-bold hover:bg-forest-deep">
-            {kirim ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Memverifikasi...</> : "Masuk Portal"}
-          </Button>
-          <p className="rounded-lg bg-gold-soft p-2.5 text-[10.5px] leading-relaxed text-gold-deep">
-            Demo: hendra (ADMIN) atau budi (AUDITOR, terikat Kebun Mandor) — sandi <b>demo123</b>. User didaftarkan admin tanpa email; username dibuat otomatis dari nama. Akses disesuaikan peran & binding kebun Anda.
+
+          <p className="mt-5 rounded-xl bg-slate-50 p-3 text-[10.5px] leading-relaxed text-slate-500">
+            Akses otomatis mengikuti <b>peran</b> (AUDITOR / AUDITEE / ADMIN) dan <b>binding unit</b> yang ditetapkan admin saat pendaftaran. Lupa sandi? Hubungi admin kebun / IT corporate.
           </p>
         </div>
       </div>
