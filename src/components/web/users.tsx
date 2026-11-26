@@ -297,3 +297,295 @@ export function WebUsers() {
       setMenyimpan(false);
     }
   };
+
+  const setStatus = async (id: string, status: "ACTIVE" | "REJECTED", namaU: string) => {
+    try {
+      await api.patch(`/api/users/${id}`, { status });
+      qc.invalidateQueries({ queryKey: qk.users });
+      qc.invalidateQueries({ queryKey: qk.aktivitas });
+      toast.success(status === "ACTIVE" ? `${namaU} disetujui — akun aktif` : `${namaU} ditolak`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  /** HAPUS PERMANEN akun user (API DELETE /api/users/[id]) —
+   *  server menolak bila akun masih terkait data pemeriksaan/temuan. */
+  const hapusUser = async () => {
+    if (!hapusTarget) return;
+    setMenghapus(true);
+    try {
+      await api.del(`/api/users/${hapusTarget.id}`);
+      qc.invalidateQueries({ queryKey: qk.users });
+      qc.invalidateQueries({ queryKey: qk.aktivitas });
+      toast.success(`Akun ${hapusTarget.nama} dihapus permanen dari sistem`);
+      setHapusTarget(null);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setMenghapus(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <StatCard title="Total Pengguna" value={users.length} icon={<UserPlus className="h-4 w-4" />} />
+        <StatCard title="Aktif" value={aktif.length} sub="auditor, auditee & admin" icon={<UserCheck className="h-4 w-4" />} accent="sky" />
+        <StatCard title="Menunggu Persetujuan" value={pending.length} sub="perlu keputusan admin" icon={<ShieldCheck className="h-4 w-4" />} accent="gold" />
+      </div>
+
+      {pending.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
+          <h3 className="text-[13px] font-bold text-amber-800">Persetujuan Pendaftaran ({pending.length})</h3>
+          <p className="text-[11px] text-amber-700">Pengguna yang mendaftar perlu disetujui admin sebelum akses aktif. Binding unit mengikuti data pendaftaran.</p>
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            {pending.map((u) => (
+              <div key={u.id} className="rounded-lg border border-amber-200 bg-white p-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-forest text-[11px] font-bold text-white">{u.nama.split(" ").map((w) => w[0]).join("")}</span>
+                  <div className="min-w-0">
+                    <p className="truncate text-[12.5px] font-bold text-slate-800">{u.nama}</p>
+                    <p className="truncate text-[10px] text-slate-500">{u.jabatan}</p>
+                  </div>
+                  <span className={cn("ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold", ROLE_STYLE[u.role])}>{u.role}</span>
+                </div>
+                <p className="mt-1.5 truncate text-[10px] text-slate-400">@{u.username}</p>
+                <p className="text-[10px] text-slate-400">Mendaftar: {fmtTanggal(u.createdAt)}</p>
+                <div className="mt-2 flex gap-2">
+                  <Button size="sm" onClick={() => setStatus(u.id, "ACTIVE", u.nama)} className="h-8 flex-1 bg-forest text-[11px] hover:bg-forest-deep">
+                    <Check className="mr-1 h-3.5 w-3.5" /> Setujui
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setStatus(u.id, "REJECTED", u.nama)} className="h-8 flex-1 border-red-200 text-[11px] text-red-600">
+                    <X className="mr-1 h-3.5 w-3.5" /> Tolak
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-xl border bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-[13px] font-bold text-slate-800">Daftar Pengguna</h3>
+            <p className="text-[11px] text-slate-500">Pendaftaran hanya oleh admin — tanpa email, kata sandi dibuat saat pendaftaran; user bisa diberi lebih dari satu estate/kebun/afdeling/perumahan (centang)</p>
+          </div>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={bukaDialogBaru} className="bg-forest text-[12px] font-semibold hover:bg-forest-deep"><UserPlus className="mr-1.5 h-4 w-4" /> Tambah User</Button>
+            </DialogTrigger>
+            <DialogContent className="rounded-xl sm:max-w-[520px]">
+              <DialogHeader>
+                <DialogTitle className="text-[15px]">Tambah Pengguna Baru</DialogTitle>
+                <DialogDescription className="text-[12px]">
+                  Tanpa email — nama pengguna dibuat otomatis dari nama. Akun langsung aktif; <b>kata sandi dibuat sendiri di form ini</b> (minimal 6 karakter). Centang unit yang boleh diakses — boleh lebih dari satu (centang induk mencakup seluruh isinya; centang level lebih rinci untuk membatasi).
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3 py-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-[11px]">Nama Lengkap</Label>
+                    <Input value={nama} onChange={(e) => setNama(e.target.value)} className="mt-1 h-9 text-[12px]" placeholder="cth: Samsul Bahri" />
+                  </div>
+                  <div>
+                    <Label className="text-[11px]">Jabatan</Label>
+                    <Input value={jabatan} onChange={(e) => setJabatan(e.target.value)} className="mt-1 h-9 text-[12px]" placeholder="cth: Asisten Afdeling I" />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-[11px]">Role / Akses</Label>
+                  <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+                    <SelectTrigger className="mt-1 h-9 text-[12px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AUDITOR">AUDITOR — pemeriksa</SelectItem>
+                      <SelectItem value="AUDITEE">AUDITEE — tindak lanjut</SelectItem>
+                      <SelectItem value="ADMIN">ADMIN — portal web</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[11px]">Kata Sandi (wajib)</Label>
+                  <Input type="password" value={sandi} onChange={(e) => setSandi(e.target.value)} className="mt-1 h-9 text-[12px]" placeholder="Minimal 6 karakter — dibuat oleh admin, catat untuk user" />
+                </div>
+                {role !== "ADMIN" ? (
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px]">Binding Unit (boleh pilih banyak)</Label>
+                      <span className="rounded bg-forest-soft px-1.5 py-0.5 text-[9.5px] font-bold text-forest">{totalPilihan} tercentang</span>
+                    </div>
+                    {master ? (
+                      <div className="mt-1">
+                        <PohonBinding master={master} sel={sel} setSel={setSel} />
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-[11px] text-slate-400">Memuat data master...</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-md border bg-slate-50 px-2.5 py-2 text-[11px] text-slate-500">ADMIN corporate — tanpa binding (melihat seluruh kebun)</div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setOpen(false)} className="h-9 text-[12px]">Batal</Button>
+                <Button onClick={simpan} disabled={menyimpan} className="h-9 bg-forest text-[12px] hover:bg-forest-deep">
+                  {menyimpan ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null} Simpan User
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <div className="mt-3 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50">
+                <TableHead className="text-[11px]">Nama</TableHead>
+                <TableHead className="text-[11px]">Nama Pengguna</TableHead>
+                <TableHead className="text-[11px]">Role</TableHead>
+                <TableHead className="text-[11px]">Jabatan</TableHead>
+                <TableHead className="text-[11px]">Binding Unit</TableHead>
+                <TableHead className="text-[11px]">Terdaftar</TableHead>
+                <TableHead className="text-[11px]">Status</TableHead>
+                <TableHead className="text-[11px]">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow><TableCell colSpan={8} className="py-6 text-center text-[12px] text-slate-400"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> Memuat...</TableCell></TableRow>
+              )}
+              {users.map((u) => (
+                <TableRow key={u.id}>
+                  <TableCell className="text-[12px] font-semibold text-slate-700">{u.nama}</TableCell>
+                  <TableCell className="font-mono text-[11.5px] text-slate-500">@{u.username}</TableCell>
+                  <TableCell><span className={cn("rounded px-1.5 py-0.5 text-[10px] font-bold", ROLE_STYLE[u.role])}>{u.role}</span></TableCell>
+                  <TableCell className="text-[11.5px] text-slate-600">{u.jabatan}</TableCell>
+                  <TableCell className="max-w-[240px] text-[11px] text-slate-600">
+                    {u.bindings?.length ? u.bindings.join(" • ") : (u.kebunNama ?? "—")}
+                  </TableCell>
+                  <TableCell className="text-[11.5px] text-slate-500">{fmtTanggal(u.createdAt)}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={cn("text-[10px]", u.status === "ACTIVE" ? "border-green-200 bg-green-50 text-green-700" : u.status === "PENDING" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-600")}>
+                      {u.status === "ACTIVE" ? "AKTIF" : u.status === "PENDING" ? "MENUNGGU" : "DITOLAK"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {u.role !== "ADMIN" && (
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-[10px] text-forest"
+                          onClick={() => bukaUbah(u)}
+                        >
+                          Ubah
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 border-red-200 px-2 text-[10px] text-red-600 hover:bg-red-50"
+                          onClick={() => setHapusTarget({ id: u.id, nama: u.nama, username: u.username })}
+                        >
+                          <Trash2 className="mr-1 h-3 w-3" /> Hapus
+                        </Button>
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
+          Tombol <b>Ubah</b> mengubah data akun (nama, jabatan, role, binding unit, kata sandi). Tombol <b>Hapus</b> menghapus akun secara permanen (hanya akun tanpa data pemeriksaan/temuan). Akun yang masih terkait data sebaiknya nonaktifkan lewat status DITOLAK agar riwayat papan &amp; audit trail tetap utuh.
+        </p>
+      </div>
+
+      {/* Dialog konfirmasi HAPUS user permanen */}
+      <AlertDialog open={!!hapusTarget} onOpenChange={(v) => !v && setHapusTarget(null)}>
+        <AlertDialogContent className="rounded-xl sm:max-w-[430px]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[15px]">Hapus Akun — {hapusTarget?.nama}?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[12px]">
+              Akun <b>@{hapusTarget?.username}</b> beserta binding unitnya akan dihapus permanen dari sistem. Tindakan ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-9 text-[12px]">Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={hapusUser}
+              disabled={menghapus}
+              className="h-9 bg-red-600 text-[12px] hover:bg-red-700"
+            >
+              {menghapus ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
+              {menghapus ? "Menghapus..." : "Ya, Hapus Permanen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog UBAH DATA user eksisting — nama, jabatan, role, kata sandi & binding */}
+      <Dialog open={!!editTarget} onOpenChange={(v) => !v && setEditTarget(null)}>
+        <DialogContent className="rounded-xl sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle className="text-[15px]">Ubah Data User — {editTarget?.nama}</DialogTitle>
+            <DialogDescription className="text-[12px]">
+              Perbarui nama, jabatan, role, binding unit, atau ganti kata sandi. Biarkan kolom kata sandi kosong bila tidak ingin mengganti; perubahan berlaku pada login berikutnya.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-[11px]">Nama Lengkap</Label>
+                <Input value={editNama} onChange={(e) => setEditNama(e.target.value)} className="mt-1 h-9 text-[12px]" />
+              </div>
+              <div>
+                <Label className="text-[11px]">Jabatan</Label>
+                <Input value={editJabatan} onChange={(e) => setEditJabatan(e.target.value)} className="mt-1 h-9 text-[12px]" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-[11px]">Role / Akses</Label>
+              <Select value={editRole} onValueChange={(v) => setEditRole(v as Role)}>
+                <SelectTrigger className="mt-1 h-9 text-[12px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="AUDITOR">AUDITOR — pemeriksa</SelectItem>
+                  <SelectItem value="AUDITEE">AUDITEE — tindak lanjut</SelectItem>
+                  <SelectItem value="ADMIN">ADMIN — portal web</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {editRole !== "ADMIN" ? (
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[11px]">Binding Unit (boleh pilih banyak)</Label>
+                  <span className="rounded bg-forest-soft px-1.5 py-0.5 text-[9.5px] font-bold text-forest">{totalEditPilihan} tercentang</span>
+                </div>
+                {master ? (
+                  <div className="mt-1">
+                    <PohonBinding master={master} sel={selEdit} setSel={setSelEdit} />
+                  </div>
+                ) : (
+                  <p className="mt-1 text-[11px] text-slate-400">Memuat data master...</p>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-md border bg-slate-50 px-2.5 py-2 text-[11px] text-slate-500">ADMIN corporate — tanpa binding (melihat seluruh kebun)</div>
+            )}
+            <div>
+              <Label className="text-[11px]">Kata Sandi Baru (opsional)</Label>
+              <Input type="password" value={editSandi} onChange={(e) => setEditSandi(e.target.value)} className="mt-1 h-9 text-[12px]" placeholder="Kosongkan bila tidak diganti — minimal 6 karakter" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)} className="h-9 text-[12px]">Batal</Button>
+            <Button onClick={simpanEdit} disabled={menyimpan} className="h-9 bg-forest text-[12px] hover:bg-forest-deep">
+              {menyimpan ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null} Simpan Perubahan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
