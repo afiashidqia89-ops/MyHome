@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { CheckCircle2, Database, Download, ExternalLink, FileJson, FileSpreadsheet, HardDriveDownload, Loader2, LockKeyhole, LogOut, MapPin, RefreshCw, Server, Settings, Trash2, Upload, Wifi, X, ArrowRight } from "lucide-react";
+import { CheckCircle2, Database, Download, ExternalLink, FileJson, FileSpreadsheet, HardDriveDownload, Loader2, LockKeyhole, LogOut, MapPin, RefreshCw, Server, Settings, Upload, Wifi, X, ArrowRight } from "lucide-react";
 import { ScreenHeader, layarAwal } from "@/components/mobile/frame";
 import type { SessionUser } from "@/lib/types";
 
@@ -345,47 +345,37 @@ export function PengaturanPerangkat({ onTutup }: { onTutup: () => void }) {
           </button>
         </section>
 
-        {/* ---------- DATA MASTER OFFLINE ---------- */}
+        {/* ---------- DATA OFFLINE & SINKRONISASI (digabung: cache master + antrean kiriman) ---------- */}
         <section className="rounded-xl border bg-white p-3">
-          <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500"><HardDriveDownload className="h-3.5 w-3.5 text-forest" /> DATA MASTER OFFLINE</p>
-          {cache ? (
-            <p className="mt-1 text-[10.5px] leading-relaxed text-slate-600">
-              Tersimpan {fmtTanggalWaktu(cache.diunduh)} dari {cache.sumber}: {cache.data.baraks.length} perumahan • {cache.data.afdelings.length} afdeling • {cache.data.checklist.length} item.
-            </p>
-          ) : (
-            <p className="mt-1 text-[10.5px] leading-relaxed text-slate-400">
-              Belum ada cache — unduh agar APK tetap bisa menampilkan peta & checklist saat sinyal lemah.
-            </p>
-          )}
-          <div className="mt-2 flex gap-2">
-            <Button onClick={unduhMaster} disabled={unduh === "jalan"} className="h-9 flex-1 bg-forest text-[11.5px] font-bold hover:bg-forest-deep">
-              {unduh === "jalan" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />} Unduh Data Master
-            </Button>
-            {cache && (
-              <Button variant="outline" onClick={hapusCache} aria-label="Hapus cache" className="h-9 shrink-0 border-red-200 px-3 text-red-600 hover:bg-red-50">
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </div>
-          {garisStatus(infoUnduh, unduh)}
-          <p className="mt-1 text-[9.5px] text-slate-400">Cache dipakai otomatis bila server tidak terjangkau; tidak memuat data pengguna.</p>
-        </section>
-
-        {/* ---------- SINKRONISASI DATA ---------- */}
-        <section className="rounded-xl border bg-white p-3">
-          <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500"><Upload className="h-3.5 w-3.5 text-forest" /> SINKRONISASI DATA</p>
+          <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500"><HardDriveDownload className="h-3.5 w-3.5 text-forest" /> DATA OFFLINE &amp; SINKRONISASI</p>
+          <p className="mt-1 text-[10.5px] leading-relaxed text-slate-600">
+            {cache
+              ? <>Cache master: <b>{cache.data.baraks.length} perumahan</b> • {cache.data.afdelings.length} afdeling • {cache.data.checklist.length} item — diunduh {fmtTanggalWaktu(cache.diunduh)}.</>
+              : "Cache master belum ada — unduh agar peta & checklist tetap tampil saat sinyal lemah."}
+          </p>
           <p className="mt-1 text-[10.5px] leading-relaxed text-slate-600">
             {antre > 0
               ? <b className="text-amber-700">{antre} data menunggu dikirim saat online.</b>
               : "Semua data sudah tersinkron dengan server."}
             {sinkronTerakhir ? ` Sinkron terakhir: ${fmtTanggalWaktu(sinkronTerakhir.waktu)}.` : ""}
           </p>
-          <Button onClick={sinkronSekarang} disabled={sink === "jalan"} className="mt-2 h-9 w-full bg-forest text-[11.5px] font-bold hover:bg-forest-deep">
-            {sink === "jalan" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />} Sinkron Sekarang
-          </Button>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <Button onClick={unduhMaster} disabled={unduh === "jalan"} className="h-9 bg-forest text-[11.5px] font-bold hover:bg-forest-deep">
+              {unduh === "jalan" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />} Unduh Master
+            </Button>
+            <Button onClick={sinkronSekarang} disabled={sink === "jalan"} className="h-9 bg-forest text-[11.5px] font-bold hover:bg-forest-deep">
+              {sink === "jalan" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />} Sinkron
+            </Button>
+          </div>
+          {cache && (
+            <button onClick={hapusCache} className="mt-1 w-full rounded-lg py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-50">
+              Hapus Cache Master
+            </button>
+          )}
+          {garisStatus(infoUnduh, unduh)}
           {garisStatus(infoSink, sink)}
           <p className="mt-1 text-[9.5px] leading-relaxed text-slate-400">
-            Pemeriksaan, temuan, tindak lanjut & verifikasi yang dibuat saat offline otomatis masuk antrean perangkat dan terkirim saat online (setelah login / buka aplikasi).
+            Cache master dipakai otomatis bila server tidak terjangkau (tidak memuat data pengguna). Pemeriksaan, temuan, tindak lanjut &amp; verifikasi yang dibuat saat offline masuk antrean perangkat dan terkirim otomatis saat online (setelah login / buka aplikasi).
           </p>
         </section>
 
