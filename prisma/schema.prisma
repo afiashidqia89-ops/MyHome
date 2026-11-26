@@ -78,6 +78,7 @@ model User {
   kebunId      String? // binding utama (kompatibilitas — dibarui dari binding pertama)
   afdelingId   String?
   status       String   @default("PENDING") // ACTIVE | PENDING | REJECTED
+  menuAkses    String?  // halaman portal web yang boleh diakses: "dashboard,detail,rekap,peta,master,users,pengaturan" — null = ikut default peran
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
