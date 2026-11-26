@@ -11,6 +11,8 @@
 //      server yang sama (Vercel / localhost dev).
 // ============================================================
 
+import { Capacitor } from "@capacitor/core";
+
 const SERVER_KEY = "rl_server_url";
 
 /** Alamat bawaan yang ditanam saat build APK (kosong di portal web). */
@@ -67,7 +69,9 @@ export function alamatAktif(): string | null {
 export function serverTerpasang(): boolean {
   if (typeof window === "undefined") return true;
   // Di portal web (bukan APK) path relatif selalu valid — server ada di origin yang sama.
-  if (!alamatAktif()) return !("Capacitor" in window);
+  // Pakai isNativePlatform(): "Capacitor" in window juga TRUE di browser
+  // karena @capacitor/core mendefinisikan window.Capacitor di web.
+  if (!alamatAktif()) return Capacitor.isNativePlatform();
   return true;
 }
 
