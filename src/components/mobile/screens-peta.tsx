@@ -41,7 +41,7 @@ export function PetaBlokScreen() {
 
   return (
     <div className="flex h-full flex-col">
-      <ScreenHeader title="Peta Blok & Perumahan" sub={`${ringkasBinding(session.bindings)} • tap titik untuk mulai pemeriksaan`} />
+      <ScreenHeader title="Peta Rumah" sub={`${ringkasBinding(session.bindings)} • tap titik untuk mulai pemeriksaan • tombol panah kanan-atas = lokasi perangkat`} />
       <div className="flex-1 overflow-y-auto thin-scroll">
         <PetaMobileKlien />
 
