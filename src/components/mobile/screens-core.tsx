@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { CheckCircle2, Database, Download, ExternalLink, FileJson, FileSpreadsheet, HardDriveDownload, Loader2, LockKeyhole, LogOut, MapPin, RefreshCw, Server, Settings, Upload, Wifi, X, ArrowRight } from "lucide-react";
+import { CheckCircle2, Database, Download, ExternalLink, FileJson, FileSpreadsheet, HardDriveDownload, Loader2, LockKeyhole, LogOut, MapPin, RefreshCw, Server, Settings, Upload, Wifi, X } from "lucide-react";
 import { ScreenHeader, layarAwal } from "@/components/mobile/frame";
 import type { SessionUser } from "@/lib/types";
 
@@ -34,12 +34,14 @@ export function LogoMark({ size = 56 }: { size?: number }) {
 }
 
 // ============ LOGIN (tanpa pemilihan kebun — binding dari pendaftaran) ============
+// Tampilan produksi: TANPA blok "AKUN DEMO" / tombol akses cepat /
+// sandi terisi otomatis — user memasukkan akun sendiri.
 export function LoginScreen() {
   const setSession = useStore((s) => s.setSession);
   const setMobileScreen = useStore((s) => s.setMobileScreen);
   const qc = useQueryClient();
-  const [username, setUsername] = useState("budi");
-  const [pw, setPw] = useState("demo123");
+  const [username, setUsername] = useState("");
+  const [pw, setPw] = useState("");
   const [kirim, setKirim] = useState(false);
   const [pengaturan, setPengaturan] = useState(false);
 
@@ -90,12 +92,6 @@ export function LoginScreen() {
     }
   };
 
-  const aksesCepat = [
-    { username: "budi", nama: "Budi Santoso", peran: "AUDITOR — Estate Manager (EM)" },
-    { username: "fauzi", nama: "Ahmad Fauzi", peran: "AUDITEE — Asisten Afdeling I" },
-    { username: "hendra", nama: "Hendra Wijaya", peran: "ADMIN — Portal Web" },
-  ];
-
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-gradient-to-b from-forest-deep via-forest to-forest-deep text-white">
       {/* Gear kanan-atas: Set IP, data master offline, update aplikasi */}
@@ -121,7 +117,7 @@ export function LoginScreen() {
         <div className="mt-3 space-y-3">
           <div>
             <Label className="text-[11px] text-slate-500">Nama Pengguna</Label>
-            <Input value={username} onChange={(e) => setUsername(e.target.value)} className="mt-1 h-10 text-[13px]" placeholder="cth: budi" autoCapitalize="none" />
+            <Input value={username} onChange={(e) => setUsername(e.target.value)} className="mt-1 h-10 text-[13px]" placeholder="username Anda" autoCapitalize="none" />
           </div>
           <div>
             <Label className="text-[11px] text-slate-500">Kata Sandi</Label>
@@ -131,23 +127,8 @@ export function LoginScreen() {
             {kirim ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Memverifikasi...</> : "Masuk"}
           </Button>
         </div>
-        <div className="my-3 flex items-center gap-2">
-          <span className="h-px flex-1 bg-slate-200" /><span className="text-[10px] text-slate-400">AKUN DEMO</span><span className="h-px flex-1 bg-slate-200" />
-        </div>
-        <div className="space-y-2">
-          {aksesCepat.map((a) => (
-            <button key={a.username} onClick={() => { setUsername(a.username); setPw("demo123"); masuk(a.username, "demo123"); }} className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-left transition hover:border-forest hover:bg-forest-soft">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-forest text-[11px] font-bold text-white">{a.nama.split(" ").map((w) => w[0]).join("")}</span>
-              <span className="min-w-0">
-                <span className="block truncate text-[12px] font-bold text-slate-800">{a.nama}</span>
-                <span className="block truncate text-[10px] text-slate-500">{a.peran}</span>
-              </span>
-              <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-slate-300" />
-            </button>
-          ))}
-        </div>
         <p className="mt-3 rounded-lg bg-gold-soft p-2 text-[10px] leading-relaxed text-gold-deep">
-          Autentikasi produksi: sandi di-hash <b>bcrypt</b>, sesi <b>JWT httpOnly cookie</b> (7 hari), dicatat di audit trail. Tidak ada pendaftaran mandiri — user baru didaftarkan admin (tanpa email) dengan binding kebun.
+          Akun didaftarkan oleh admin kebun (tanpa email) dengan binding unit. Lupa sandi? Hubungi admin kebun / IT corporate.
         </p>
       </div>
       <p className="mt-4 text-center text-[10px] text-white/50">Login terikat peran: AUDITOR / AUDITEE / ADMIN</p>
