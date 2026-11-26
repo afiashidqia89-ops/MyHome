@@ -18,8 +18,9 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Building2, Check, ChevronDown, ChevronRight, Layers3, Loader2, ShieldCheck, Trash2, TreePalm, UserCheck, UserPlus, Warehouse, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MENU_WEB } from "@/components/web/layout";
 import type { MasterData } from "@/lib/types";
-import type { Role } from "@/lib/types";
+import type { Role, WebPage } from "@/lib/types";
 
 const ROLE_STYLE: Record<Role, string> = {
   AUDITOR: "bg-forest text-white",
@@ -175,6 +176,59 @@ function dariIds(ids: BindingIds[] | undefined): SetBinding {
   return sel;
 }
 
+// ---------- Pilihan akses menu portal web (dipakai dialog tambah & ubah) ----------
+const SEMUA_MENU_WEB: WebPage[] = MENU_WEB.map((m) => m.id);
+
+/** Buang menu yang tidak sesuai peran (terkunci) dari kumpulan pilihan. */
+function menuValidUntuk(role: Role, ids: Iterable<WebPage>): Set<WebPage> {
+  return new Set(
+    [...ids].filter((id) => {
+      const m = MENU_WEB.find((x) => x.id === id);
+      return !!m && !(m.adminOnly && role !== "ADMIN") && !(m.bukanAuditee && role === "AUDITEE");
+    }),
+  );
+}
+
+function toggleMenu(id: WebPage, cur: Set<WebPage>): Set<WebPage> {
+  const s = new Set(cur);
+  if (s.has(id)) s.delete(id);
+  else s.add(id);
+  return s;
+}
+
+function PilihMenuWeb({ sel, setSel, role }: { sel: Set<WebPage>; setSel: (s: Set<WebPage>) => void; role: Role }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <Label className="text-[11px]">Akses Menu Portal Web</Label>
+        <div className="flex items-center gap-2">
+          <span className="rounded bg-forest-soft px-1.5 py-0.5 text-[9.5px] font-bold text-forest">{sel.size}/{SEMUA_MENU_WEB.length} menu</span>
+          <button type="button" onClick={() => setSel(new Set(SEMUA_MENU_WEB))} className="text-[10px] font-bold text-forest hover:underline">Cek Semua</button>
+          <button type="button" onClick={() => setSel(menuValidUntuk(role, []))} className="text-[10px] font-bold text-slate-400 hover:underline">Kosongkan</button>
+        </div>
+      </div>
+      <div className="mt-1 grid gap-1.5 sm:grid-cols-2">
+        {MENU_WEB.map((m) => {
+          const terkunci = (m.adminOnly && role !== "ADMIN") || (m.bukanAuditee && role === "AUDITEE");
+          return (
+            <label key={m.id} className={cn("flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition", sel.has(m.id) ? "border-forest/40 bg-forest-soft/50" : "border-slate-200 bg-white", terkunci && "opacity-50")}>
+              <Checkbox checked={sel.has(m.id)} disabled={terkunci} onCheckedChange={() => setSel(toggleMenu(m.id, sel))} className="h-3.5 w-3.5" />
+              <span className="shrink-0 text-forest">{m.icon}</span>
+              <span className="min-w-0 text-[11px] font-semibold text-slate-700">
+                {m.label}
+                {terkunci && <span className="ml-1 text-[9px] font-medium text-slate-400">{m.adminOnly ? "(khusus ADMIN)" : "(bukan AUDITEE)"}</span>}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+        Tentukan halaman portal web yang boleh dibuka user ini — menu yang tidak sesuai peran terkunci otomatis.
+      </p>
+    </div>
+  );
+}
+
 // ============ HALAMAN PENDAFTARAN USER ============
 export function WebUsers() {
   const { master } = useStore();
@@ -190,6 +244,7 @@ export function WebUsers() {
   const [role, setRole] = useState<Role>("AUDITEE");
   const [sel, setSel] = useState<SetBinding>({ e: new Set(), k: new Set(), a: new Set(), b: new Set() });
   const [menyimpan, setMenyimpan] = useState(false);
+  const [menuSel, setMenuSel] = useState<Set<WebPage>>(new Set(SEMUA_MENU_WEB));
 
   // Dialog UBAH DATA user eksisting (nama, jabatan, role, kata sandi, binding)
   const [editTarget, setEditTarget] = useState<{ id: string; nama: string; role: string } | null>(null);
@@ -198,6 +253,7 @@ export function WebUsers() {
   const [editRole, setEditRole] = useState<Role>("AUDITEE");
   const [editSandi, setEditSandi] = useState("");
   const [selEdit, setSelEdit] = useState<SetBinding>({ e: new Set(), k: new Set(), a: new Set(), b: new Set() });
+  const [menuSelEdit, setMenuSelEdit] = useState<Set<WebPage>>(new Set(SEMUA_MENU_WEB));
 
   // Dialog HAPUS user permanen (tombol di kolom Aksi tabel)
   const [hapusTarget, setHapusTarget] = useState<{ id: string; nama: string; username: string } | null>(null);
@@ -212,6 +268,7 @@ export function WebUsers() {
     setSandi("");
     setRole("AUDITEE");
     setSel({ e: new Set(), k: new Set(), a: new Set(), b: new Set() });
+    setMenuSel(new Set(SEMUA_MENU_WEB));
     setOpen(true);
   };
 
@@ -228,6 +285,10 @@ export function WebUsers() {
       toast.error("Centang minimal satu estate/kebun/afdeling/perumahan — user diikat pada unit terdaftar");
       return;
     }
+    if (menuSel.size === 0) {
+      toast.error("Pilih minimal satu menu portal web yang boleh dibuka user ini");
+      return;
+    }
     setMenyimpan(true);
     try {
       const res = await api.post<{ user: { username: string }; sandiAwal: string }>("/api/users", {
@@ -236,6 +297,7 @@ export function WebUsers() {
         role,
         password: sandi.trim(),
         bindings: jadiPayload(sel),
+        menuAkses: [...menuSel],
       });
       qc.invalidateQueries({ queryKey: qk.users });
       qc.invalidateQueries({ queryKey: qk.aktivitas });
@@ -249,17 +311,20 @@ export function WebUsers() {
   };
 
   /** Buka dialog UBAH DATA — semua isian diprefill dari data user terpilih. */
-  const bukaUbah = (u: { id: string; nama: string; jabatan?: string; role: string; bindingIds?: BindingIds[] }) => {
+  const bukaUbah = (u: { id: string; nama: string; jabatan?: string; role: string; bindingIds?: BindingIds[]; menuAkses?: string | null }) => {
     setEditTarget({ id: u.id, nama: u.nama, role: u.role });
     setEditNama(u.nama);
     setEditJabatan(u.jabatan ?? "");
     setEditRole((u.role as Role) ?? "AUDITEE");
     setEditSandi("");
     setSelEdit(dariIds(u.bindingIds));
+    const menuUser = (u.menuAkses ?? "").split(",").map((s) => s.trim()).filter(Boolean) as WebPage[];
+    const menuValid = menuValidUntuk((u.role as Role) ?? "AUDITEE", menuUser);
+    setMenuSelEdit(menuValid.size ? menuValid : new Set(menuValidUntuk((u.role as Role) ?? "AUDITEE", SEMUA_MENU_WEB)));
   };
 
   /** Simpan perubahan data user (PATCH /api/users/[id]): nama, jabatan,
-   *  role, kata sandi baru (opsional) dan binding unit. */
+   *  role, kata sandi baru (opsional), binding unit & akses menu web. */
   const simpanEdit = async () => {
     if (!editTarget) return;
     if (!editNama.trim()) {
@@ -278,6 +343,10 @@ export function WebUsers() {
       toast.error("User lapangan wajib punya minimal satu binding unit");
       return;
     }
+    if (menuSelEdit.size === 0) {
+      toast.error("Pilih minimal satu menu portal web yang boleh dibuka user ini");
+      return;
+    }
     setMenyimpan(true);
     try {
       await api.patch(`/api/users/${editTarget.id}`, {
@@ -286,6 +355,7 @@ export function WebUsers() {
         role: editRole,
         ...(editSandi.trim() ? { password: editSandi.trim() } : {}),
         bindings: editRole === "ADMIN" ? [] : jadiPayload(selEdit),
+        menuAkses: [...menuSelEdit],
       });
       qc.invalidateQueries({ queryKey: qk.users });
       qc.invalidateQueries({ queryKey: qk.aktivitas });
@@ -396,7 +466,7 @@ export function WebUsers() {
                 </div>
                 <div>
                   <Label className="text-[11px]">Role / Akses</Label>
-                  <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+                  <Select value={role} onValueChange={(v) => { const r = v as Role; setRole(r); setMenuSel((cur) => menuValidUntuk(r, cur)); }}>
                     <SelectTrigger className="mt-1 h-9 text-[12px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="AUDITOR">AUDITOR — pemeriksa</SelectItem>
@@ -409,6 +479,7 @@ export function WebUsers() {
                   <Label className="text-[11px]">Kata Sandi (wajib)</Label>
                   <Input type="password" value={sandi} onChange={(e) => setSandi(e.target.value)} className="mt-1 h-9 text-[12px]" placeholder="Minimal 6 karakter — dibuat oleh admin, catat untuk user" />
                 </div>
+                <PilihMenuWeb sel={menuSel} setSel={setMenuSel} role={role} />
                 {role !== "ADMIN" ? (
                   <div>
                     <div className="flex items-center justify-between">
@@ -444,6 +515,7 @@ export function WebUsers() {
                 <TableHead className="text-[11px]">Nama</TableHead>
                 <TableHead className="text-[11px]">Nama Pengguna</TableHead>
                 <TableHead className="text-[11px]">Role</TableHead>
+                <TableHead className="text-[11px]">Akses Menu</TableHead>
                 <TableHead className="text-[11px]">Jabatan</TableHead>
                 <TableHead className="text-[11px]">Binding Unit</TableHead>
                 <TableHead className="text-[11px]">Terdaftar</TableHead>
@@ -453,13 +525,16 @@ export function WebUsers() {
             </TableHeader>
             <TableBody>
               {isLoading && (
-                <TableRow><TableCell colSpan={8} className="py-6 text-center text-[12px] text-slate-400"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> Memuat...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="py-6 text-center text-[12px] text-slate-400"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> Memuat...</TableCell></TableRow>
               )}
               {users.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell className="text-[12px] font-semibold text-slate-700">{u.nama}</TableCell>
                   <TableCell className="font-mono text-[11.5px] text-slate-500">@{u.username}</TableCell>
                   <TableCell><span className={cn("rounded px-1.5 py-0.5 text-[10px] font-bold", ROLE_STYLE[u.role])}>{u.role}</span></TableCell>
+                  <TableCell className="text-[11px] text-slate-500">
+                    {u.menuAkses ? `${u.menuAkses.split(",").filter(Boolean).length} menu dipilih` : "Semua (default peran)"}
+                  </TableCell>
                   <TableCell className="text-[11.5px] text-slate-600">{u.jabatan}</TableCell>
                   <TableCell className="max-w-[240px] text-[11px] text-slate-600">
                     {u.bindings?.length ? u.bindings.join(" • ") : (u.kebunNama ?? "—")}
@@ -498,7 +573,7 @@ export function WebUsers() {
           </Table>
         </div>
         <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
-          Tombol <b>Ubah</b> mengubah data akun (nama, jabatan, role, binding unit, kata sandi). Tombol <b>Hapus</b> menghapus akun secara permanen (hanya akun tanpa data pemeriksaan/temuan). Akun yang masih terkait data sebaiknya nonaktifkan lewat status DITOLAK agar riwayat papan &amp; audit trail tetap utuh.
+          Tombol <b>Ubah</b> mengubah data akun (nama, jabatan, role, binding unit, kata sandi, akses menu web). Tombol <b>Hapus</b> menghapus akun secara permanen (hanya akun tanpa data pemeriksaan/temuan). Akun yang masih terkait data sebaiknya nonaktifkan lewat status DITOLAK agar riwayat papan &amp; audit trail tetap utuh.
         </p>
       </div>
 
@@ -547,7 +622,7 @@ export function WebUsers() {
             </div>
             <div>
               <Label className="text-[11px]">Role / Akses</Label>
-              <Select value={editRole} onValueChange={(v) => setEditRole(v as Role)}>
+              <Select value={editRole} onValueChange={(v) => { const r = v as Role; setEditRole(r); setMenuSelEdit((cur) => menuValidUntuk(r, cur)); }}>
                 <SelectTrigger className="mt-1 h-9 text-[12px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="AUDITOR">AUDITOR — pemeriksa</SelectItem>
@@ -577,6 +652,7 @@ export function WebUsers() {
               <Label className="text-[11px]">Kata Sandi Baru (opsional)</Label>
               <Input type="password" value={editSandi} onChange={(e) => setEditSandi(e.target.value)} className="mt-1 h-9 text-[12px]" placeholder="Kosongkan bila tidak diganti — minimal 6 karakter" />
             </div>
+            <PilihMenuWeb sel={menuSelEdit} setSel={setMenuSelEdit} role={editRole} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditTarget(null)} className="h-9 text-[12px]">Batal</Button>
