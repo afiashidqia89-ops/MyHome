@@ -240,7 +240,11 @@ export function InspectScreen() {
     }
     setMenyimpan(true);
     try {
-      const res = await api.post<{ inspeksi: { kode: string }; temuanDibuat: number }>("/api/inspeksi", {
+      // OFFLINE-FIRST: POST /api/inspeksi otomatis disimpan di antrean perangkat
+      // (balasan sintetis offline:true) — TIDAK menunggu server. Pengiriman
+      // nyata ke server lewat tombol "Sinkron Sekarang" (Beranda/Profil) atau
+      // otomatis saat login/buka aplikasi. Tidak ada lagi error 500 saat simpan.
+      const res = await api.post<{ inspeksi: { kode: string }; temuanDibuat: number; offline?: boolean }>("/api/inspeksi", {
         barakId: barak.id,
         picLabel: draft.picLabel,
         lat: draft.gps.lat,
@@ -252,7 +256,11 @@ export function InspectScreen() {
       qc.invalidateQueries({ queryKey: qk.temuan });
       refresh();
       discardDraft();
-      toast.success(`Tersimpan ke server sebagai ${res.inspeksi.kode}${res.temuanDibuat ? ` • ${res.temuanDibuat} temuan dibuat` : ""}`);
+      if (res.offline) {
+        toast.success(`Aman di perangkat sebagai ${res.inspeksi.kode}${res.temuanDibuat ? ` • ${res.temuanDibuat} temuan dicatat` : ""} — kirim lewat "Sinkron Sekarang" di Beranda/Profil`);
+      } else {
+        toast.success(`Tersimpan ke server sebagai ${res.inspeksi.kode}${res.temuanDibuat ? ` • ${res.temuanDibuat} temuan dibuat` : ""}`);
+      }
       setMobileScreen("peta"); // kembali ke peta untuk memeriksa perumahan berikutnya
     } catch (e) {
       toast.error((e as Error).message);
@@ -280,6 +288,12 @@ export function InspectScreen() {
             <>
               <p className="mt-1 font-mono text-[12px] text-slate-700">{fmtKoor(draft.gps.lat, draft.gps.lng)}</p>
               <p className="text-[10px] text-slate-400">Akurasi ± {draft.gps.acc.toFixed(1)} m • ditag sekali untuk seluruh item &amp; foto rumah ini</p>
+              {/* RE-TAGGING: ulangi pengambilan GPS bila akurasi rendah (di dalam gedung/
+                  di bawah atap) — koordinat lama diganti dengan yang lebih presisi. */}
+              <Button onClick={tagKoordinat} disabled={menandai} variant="outline" className="mt-2 h-9 w-full border-dashed text-[11px] text-forest hover:bg-forest-soft">
+                {menandai ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Crosshair className="mr-1.5 h-3.5 w-3.5" />}
+                {menandai ? "Mengambil koordinat baru..." : "Tag Ulang Koordinat (perbaiki akurasi)"}
+              </Button>
             </>
           ) : (
             <>
@@ -356,9 +370,9 @@ export function InspectScreen() {
       <div className="shrink-0 space-y-1.5 border-t bg-white p-3">
         <Button onClick={simpan} disabled={menyimpan} className="h-11 w-full bg-forest text-[12px] font-bold hover:bg-forest-deep">
           {menyimpan ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-          {menyimpan ? "Menyimpan ke server..." : "Simpan ke Server (PostgreSQL)"}
+          {menyimpan ? "Menyimpan..." : "Simpan Pemeriksaan"}
         </Button>
-        <p className="text-center text-[10px] text-slate-400">Transaksi atomik: hasil item + koordinat tag + foto + temuan tersimpan & langsung tampil di papan web</p>
+        <p className="text-center text-[10px] leading-relaxed text-slate-400">Data langsung AMAN di perangkat (tanpa menunggu server) — terkirim lewat tombol "Sinkron Sekarang" di Beranda/Profil atau otomatis saat online</p>
       </div>
     </div>
   );
@@ -429,7 +443,7 @@ export function InspectItemScreen() {
     <div className="flex h-full flex-col">
       <ScreenHeader
         title={`${item.id} — ${item.label}`}
-        sub={`${kartu?.id} • ${kartu?.nama}`}
+        sub={kartu?.nama ?? ""}
         onBack={() => { setActiveItem(null); setMobileScreen("inspect"); }}
         right={<span className="rounded bg-white/15 px-1.5 py-0.5 text-[9px] font-bold">{kartu?.singkat}</span>}
       />
