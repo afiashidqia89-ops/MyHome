@@ -102,7 +102,7 @@ export async function POST(req: Request) {
   // default) — minimal 6 karakter.
   const sandiAwal = (body.password ?? "").trim();
   if (sandiAwal.length < 6) return badRequest("Kata sandi wajib dibuat saat pendaftaran (minimal 6 karakter)");
-  if (![["AUDITOR", "AUDITEE", "ADMIN"].includes(role)]) return badRequest("Peran tidak dikenal");
+  if (!["AUDITOR", "AUDITEE", "ADMIN"].includes(role)) return badRequest("Peran tidak dikenal");
 
   // Binding: checkbox multi level; fallback ke kolom tunggal bila ada
   const bindings = validasiBinding(body.bindings ?? []);
