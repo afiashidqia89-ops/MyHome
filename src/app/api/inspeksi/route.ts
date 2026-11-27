@@ -146,7 +146,7 @@ export async function POST(req: Request) {
         kesimpulan: body.kesimpulan?.trim() || null,
         status: "TERKIRIM",
         // Koordinat hasil TAGGING auditor di lokasi (1x per pemeriksaan),
-        // bukan koordinat foto — fallback ke titik perumahan bila kosong.
+        // bukan koordinat foto — fallback ke titik perumahan bila ada (bisa kosong/NULL).
         lat: Number.isFinite(body.lat) ? (body.lat as number) : barak.lat,
         lng: Number.isFinite(body.lng) ? (body.lng as number) : barak.lng,
       },
@@ -160,7 +160,7 @@ export async function POST(req: Request) {
       for (const f of r.fotos ?? []) {
         if (!f.dataUrl || f.dataUrl.length > 3_000_000) continue;
         await tx.foto.create({
-          data: { hasilId: h.id, dataUrl: f.dataUrl, lat: f.lat ?? barak.lat, lng: f.lng ?? barak.lng, label: (f.label ?? "Foto audit").slice(0, 120) },
+          data: { hasilId: h.id, dataUrl: f.dataUrl, lat: f.lat ?? barak.lat ?? 0, lng: f.lng ?? barak.lng ?? 0, label: (f.label ?? "Foto audit").slice(0, 120) },
         });
       }
     }
