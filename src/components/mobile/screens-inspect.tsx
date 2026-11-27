@@ -138,7 +138,7 @@ export function InspectNewScreen() {
                   {last ? <ChipStatus s={last.results.some((r) => r.status === "M") ? "M" : "H"} className="scale-90" /> : <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400">Belum diaudit</span>}
                 </div>
                 <p className="mt-0.5 text-[11px] text-slate-500">kapasitas {b.kapasitas} orang</p>
-                <p className="mt-1 flex items-center gap-1 text-[10px] text-slate-400"><MapPin className="h-3 w-3" /> {fmtKoor(b.koordinat.lat, b.koordinat.lng)}{last ? ` • audit ${fmtTanggal(last.tanggal)}` : ""}</p>
+                <p className="mt-1 flex items-center gap-1 text-[10px] text-slate-400"><MapPin className="h-3 w-3" /> {fmtKoor(b.koordinat?.lat, b.koordinat?.lng)}{last ? ` • audit ${fmtTanggal(last.tanggal)}` : ""}</p>
               </button>
             );
           })}
@@ -402,7 +402,7 @@ export function InspectItemScreen() {
   const matriks = master.matriks;
 
   // Koordinat = hasil TAGGING sekali di depan rumah (draft.gps) — bukan dari foto.
-  const koordinat = draft.gps ?? { lat: barak.koordinat.lat, lng: barak.koordinat.lng, acc: 5 };
+  const koordinat = draft.gps ?? (barak.koordinat ? { lat: barak.koordinat.lat, lng: barak.koordinat.lng, acc: 5 } : null);
 
   // FOTO ASLI dari KAMERA BAWAAN APLIKASI (overlay getUserMedia) —
   // dikompres + watermark koordinat tag & waktu. Tidak lagi membuka
@@ -411,12 +411,12 @@ export function InspectItemScreen() {
     // Judul foto pakai NAMA KARTU (mis. "Hunian") — bukan kode internal "KMS-xx".
     setKamera({
       judul: `${kartu?.singkat ?? kartu?.nama ?? "Kartu"} • ${item.id} ${item.label}`,
-      sub: `${namaBarakSingkat(namaBarak(barak.id), namaAfdeling(barak.afdelingId))} • ${fmtKoor(koordinat.lat, koordinat.lng)} • ${new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
+      sub: `${namaBarakSingkat(namaBarak(barak.id), namaAfdeling(barak.afdelingId))} • ${fmtKoor(koordinat?.lat, koordinat?.lng)} • ${new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
     });
   };
 
   const simpanFoto = (dataUrl: string) => {
-    addDraftFoto(item.id, { id: `f-${Date.now()}`, dataUrl, lat: koordinat.lat, lng: koordinat.lng, timestamp: new Date().toISOString(), label: item.label });
+    addDraftFoto(item.id, { id: `f-${Date.now()}`, dataUrl, lat: koordinat?.lat ?? 0, lng: koordinat?.lng ?? 0, timestamp: new Date().toISOString(), label: item.label });
     setKamera(null);
     toast.success("Foto kamera bawaan aplikasi tersimpan dengan watermark koordinat tag & waktu");
   };
@@ -470,7 +470,7 @@ export function InspectItemScreen() {
             <p className="text-[10px] font-bold text-slate-500">KOORDINAT PEMERIKSAAN (TAG 1x)</p>
             {draft.gps ? <span className="rounded bg-green-50 px-1.5 py-0.5 text-[9px] font-bold text-green-700">TERKUNCI</span> : <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">BELUM DITAG</span>}
           </div>
-          <p className="mt-1 font-mono text-[12px] text-slate-700">{fmtKoor(koordinat.lat, koordinat.lng)}</p>
+          <p className="mt-1 font-mono text-[12px] text-slate-700">{fmtKoor(koordinat?.lat, koordinat?.lng)}</p>
           <p className="text-[10px] text-slate-400">Ditag sekali di depan rumah — otomatis menempel pada setiap foto (bukan koordinat foto)</p>
         </div>
 
