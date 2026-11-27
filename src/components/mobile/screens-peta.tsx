@@ -87,7 +87,7 @@ export function PetaBlokScreen() {
                       </button>
                     )}
                   </div>
-                  <p className="mt-1 font-mono text-[9px] text-slate-400">{fmtKoor(b.koordinat.lat, b.koordinat.lng)}</p>
+                  <p className="mt-1 font-mono text-[9px] text-slate-400">{fmtKoor(b.koordinat?.lat, b.koordinat?.lng)}</p>
                 </div>
               );
             })}
