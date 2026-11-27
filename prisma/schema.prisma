@@ -21,6 +21,8 @@ datasource db {
 model Estate {
   id       String        @id
   nama     String
+  lat      Float? // koordinat opsional — kosong bila tidak diisi saat pendaftaran
+  lng      Float?
   kebuns   Kebun[]
   bindings UserBinding[]
 }
@@ -29,6 +31,8 @@ model Kebun {
   id        String        @id
   estateId  String
   nama      String
+  lat       Float? // koordinat opsional — kosong bila tidak diisi saat pendaftaran
+  lng       Float?
   estate    Estate        @relation(fields: [estateId], references: [id])
   afdelings Afdeling[]
   users     User[]
@@ -41,8 +45,8 @@ model Afdeling {
   id      String        @id
   kebunId String
   nama    String
-  lat     Float
-  lng     Float
+  lat     Float? // koordinat opsional — kosong bila tidak diisi saat pendaftaran
+  lng     Float?
   kebun   Kebun         @relation(fields: [kebunId], references: [id])
   baraks  Barak[]
   users   User[]
@@ -57,8 +61,8 @@ model Barak {
   nama       String
   tipe       String
   kapasitas  Int
-  lat        Float
-  lng        Float
+  lat        Float? // koordinat opsional — kosong bila tidak diisi saat pendaftaran
+  lng        Float?
   afdeling   Afdeling      @relation(fields: [afdelingId], references: [id])
   inspeksi   Inspeksi[]
   temuan     Temuan[]
