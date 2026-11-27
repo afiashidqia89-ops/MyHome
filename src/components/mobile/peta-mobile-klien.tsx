@@ -77,7 +77,10 @@ export function PetaMobileKlien() {
   const { data: findings = [] } = useTemuan(true);
   const auditor = session?.role === "AUDITOR";
 
-  const baraks = master?.baraks ?? [];
+  // Hanya perumahan yang punya koordinat yang bisa digambar di peta
+  const baraks = (master?.baraks ?? []).filter(
+    (b): b is NonNullable<typeof b> & { koordinat: { lat: number; lng: number } } => b.koordinat !== null,
+  );
   const pusat = baraks.length ? [baraks[0].koordinat.lat, baraks[0].koordinat.lng] : [-0.052, 109.322];
 
   const mulai = (afdelingId: string, barakId: string) => {
