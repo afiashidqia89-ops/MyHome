@@ -119,8 +119,8 @@ export function FindingDetailScreen() {
   const bukaKameraBukti = async () => {
     const lok = await lokasiSaatIni().catch(() => null);
     const barak = master?.baraks.find((b) => b.id === f.barakId);
-    const lat = lok?.lat ?? barak?.koordinat.lat ?? 0;
-    const lng = lok?.lng ?? barak?.koordinat.lng ?? 0;
+    const lat = lok?.lat ?? barak?.koordinat?.lat ?? 0;
+    const lng = lok?.lng ?? barak?.koordinat?.lng ?? 0;
     setKamera({
       judul: `BUKTI PERBAIKAN • ${f.kode}`,
       sub: `${namaBarak(f.barakId)} • ${fmtKoor(lat, lng)} • ${new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
