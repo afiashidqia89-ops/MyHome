@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { badRequest, forbidden, getSessionUser, hashPassword, unauthorized } from "@/lib/auth";
+import { badRequest, forbidden, getSessionUser, hashPassword, normalisasiUsername, unauthorized } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
   }
 
   // Username otomatis dari nama — unik, huruf kecil, dedupe dengan angka
-  const dasar = nama.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 20) || "user";
+  const dasar = normalisasiUsername(nama) || "user";
   let username = dasar;
   let n = 2;
   while (await db.user.findUnique({ where: { username } })) {
