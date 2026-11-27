@@ -54,20 +54,25 @@ export interface ApprovalLevel {
   sla: string;
 }
 
+/** Koordinat opsional: null bila tidak diisi saat pendaftaran data master. */
+export type Koordinat = { lat: number; lng: number } | null;
+
 export interface Estate {
   id: string;
   nama: string;
+  koordinat?: Koordinat;
 }
 export interface Kebun {
   id: string;
   estateId: string;
   nama: string;
+  koordinat?: Koordinat;
 }
 export interface Afdeling {
   id: string;
   kebunId: string;
   nama: string;
-  koordinat: { lat: number; lng: number };
+  koordinat: Koordinat;
 }
 export interface Barak {
   id: string;
@@ -75,7 +80,7 @@ export interface Barak {
   nama: string;
   tipe: string;
   kapasitas: number;
-  koordinat: { lat: number; lng: number };
+  koordinat: Koordinat;
 }
 
 export interface Foto {
