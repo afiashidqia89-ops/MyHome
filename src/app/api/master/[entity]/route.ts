@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { badRequest, forbidden, getSessionUser, unauthorized } from "@/lib/auth";
+import { bacaKoordinat } from "@/lib/koordinat";
 
 export const runtime = "nodejs";
 
@@ -12,13 +13,12 @@ export const runtime = "nodejs";
 const ENTITAS = ["estate", "kebun", "afdeling", "barak"] as const;
 type Entity = (typeof ENTITAS)[number];
 
-const PUSAT_DEFAULT = { lat: -0.052, lng: 109.322 }; // pusat Kebun Mandor (fallback koordinat)
-
 function idBaru(prefix: string) {
   return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 function angka(v: unknown, fallback: number): number {
+  if (v === undefined || v === null || String(v).trim() === "") return fallback;
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
 }
@@ -41,17 +41,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ entity:
   const nama = String(body.nama ?? "").trim();
   if (!nama) return badRequest("Nama wajib diisi");
 
+  // Koordinat opsional & seragam untuk SEMUA level: kosong = NULL (tanpa nilai bawaan)
+  const koor = bacaKoordinat(body.lat, body.lng);
+  if (!koor.ok) return badRequest(koor.error);
+  const { lat, lng } = koor;
+
   let created: { id: string; nama: string };
   let labelAksi = nama;
 
   if (entity === "estate") {
-    created = await db.estate.create({ data: { id: idBaru("EST"), nama } });
+    created = await db.estate.create({ data: { id: idBaru("EST"), nama, lat, lng } });
   } else if (entity === "kebun") {
     const estateId = String(body.estateId ?? "").trim();
     if (!estateId) return badRequest("Estate induk wajib dipilih");
     const estate = await db.estate.findUnique({ where: { id: estateId } });
     if (!estate) return badRequest("Estate tidak ditemukan");
-    created = await db.kebun.create({ data: { id: idBaru("KB"), estateId, nama } });
+    created = await db.kebun.create({ data: { id: idBaru("KB"), estateId, nama, lat, lng } });
     labelAksi = `${nama} (${estate.nama})`;
   } else if (entity === "afdeling") {
     const kebunId = String(body.kebunId ?? "").trim();
@@ -59,7 +64,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ entity:
     const kebun = await db.kebun.findUnique({ where: { id: kebunId } });
     if (!kebun) return badRequest("Kebun tidak ditemukan");
     created = await db.afdeling.create({
-      data: { id: idBaru("AF"), kebunId, nama, lat: angka(body.lat, PUSAT_DEFAULT.lat), lng: angka(body.lng, PUSAT_DEFAULT.lng) },
+      data: { id: idBaru("AF"), kebunId, nama, lat, lng },
     });
     labelAksi = `${nama} (${kebun.nama})`;
   } else {
@@ -75,8 +80,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ entity:
         nama,
         tipe: String(body.tipe ?? "").trim() || "Perumahan",
         kapasitas,
-        lat: angka(body.lat, PUSAT_DEFAULT.lat),
-        lng: angka(body.lng, PUSAT_DEFAULT.lng),
+        lat,
+        lng,
       },
     });
     labelAksi = `${nama} (${afd.nama})`;
