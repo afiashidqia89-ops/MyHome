@@ -32,8 +32,8 @@ async function main() {
   console.log("Menanam struktur organisasi...");
   for (const e of ESTATES) await db.estate.create({ data: { id: e.id, nama: e.nama } });
   for (const k of KEBUNS) await db.kebun.create({ data: { id: k.id, estateId: k.estateId, nama: k.nama } });
-  for (const a of AFDELINGS) await db.afdeling.create({ data: { id: a.id, kebunId: a.kebunId, nama: a.nama, lat: a.koordinat.lat, lng: a.koordinat.lng } });
-  for (const b of BARAKS) await db.barak.create({ data: { id: b.id, afdelingId: b.afdelingId, nama: b.nama, tipe: b.tipe, kapasitas: b.kapasitas, lat: b.koordinat.lat, lng: b.koordinat.lng } });
+  for (const a of AFDELINGS) await db.afdeling.create({ data: { id: a.id, kebunId: a.kebunId, nama: a.nama, lat: a.koordinat?.lat ?? null, lng: a.koordinat?.lng ?? null } });
+  for (const b of BARAKS) await db.barak.create({ data: { id: b.id, afdelingId: b.afdelingId, nama: b.nama, tipe: b.tipe, kapasitas: b.kapasitas, lat: b.koordinat?.lat ?? null, lng: b.koordinat?.lng ?? null } });
 
   console.log("Menanam kartu Kamishibai & 27 item checklist...");
   for (const k of KARTU) {
@@ -82,8 +82,8 @@ async function main() {
         minggu: i.minggu, periode: i.periode, barakId: i.barakId, auditorId: i.auditorId,
         picLabel: i.picLabel, kesimpulan: i.kesimpulan ?? null,
         status: i.sync === "draft" ? "DRAFT" : "TERKIRIM",
-        lat: BARAKS.find((b) => b.id === i.barakId)?.koordinat.lat ?? null,
-        lng: BARAKS.find((b) => b.id === i.barakId)?.koordinat.lng ?? null,
+        lat: BARAKS.find((b) => b.id === i.barakId)?.koordinat?.lat ?? null,
+        lng: BARAKS.find((b) => b.id === i.barakId)?.koordinat?.lng ?? null,
       },
     });
     for (const r of i.results) {
