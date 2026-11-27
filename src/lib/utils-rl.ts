@@ -12,7 +12,8 @@ export function fmtTanggalWaktu(iso?: string) {
   const d = new Date(iso);
   return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }).format(d).replace(".", ":");
 }
-export function fmtKoor(lat: number, lng: number) {
+export function fmtKoor(lat: number | null | undefined, lng: number | null | undefined) {
+  if (typeof lat !== "number" || typeof lng !== "number") return "—"; // koordinat belum diisi
   return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
