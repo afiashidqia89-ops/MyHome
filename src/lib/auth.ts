@@ -15,6 +15,20 @@ export type SessionUser = Prisma.UserGetPayload<{
   include: { kebun: true; afdeling: true; bindings: { include: { estate: true; kebun: true; afdeling: true; barak: true } } };
 }>;
 
+/**
+ * Bentuk baku username: huruf kecil + angka saja, maksimal 20 karakter.
+ * Dipakai di DUA tempat agar selalu sepadan: pembuatan username otomatis saat
+ * pendaftaran (api/users) dan pencocokan input saat login (api/auth/login).
+ */
+export function normalisasiUsername(teks: string) {
+  return teks.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 20);
+}
+
+/** Rapikan nama untuk pencocokan: huruf kecil, spasi ganda dijadikan satu. */
+export function rapikanNama(teks: string) {
+  return teks.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
 export async function hashPassword(plain: string) {
   return bcrypt.hash(plain, 10);
 }
