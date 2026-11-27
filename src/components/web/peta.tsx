@@ -71,7 +71,7 @@ export function WebPeta() {
           <span className="flex items-center gap-1.5"><span className="h-4 w-4 rounded-full bg-[#94a3b8] border-2 border-white shadow" /> Belum diaudit</span>
         </div>
         <p className="ml-auto flex items-center gap-1.5 text-[11px] font-semibold text-forest">
-          <Radar className="h-4 w-4" /> {list.length} titik GPS perumahan • koordinat dari foto auditor
+          <Radar className="h-4 w-4" /> {list.filter((b) => b.koordinat).length} titik GPS perumahan{list.some((b) => !b.koordinat) ? ` • ${list.filter((b) => !b.koordinat).length} belum berkoordinat` : ""} • koordinat dari foto auditor
         </p>
       </div>
 
@@ -93,7 +93,7 @@ export function WebPeta() {
                   <ChipStatus s={i.status === "N" ? "-" : i.status} className="ml-auto scale-90" />
                 </div>
                 <p className="mt-1 text-[10.5px] text-slate-500">{namaAfdeling(b.afdelingId)} • {b.kapasitas} orang</p>
-                <p className="font-mono text-[10px] text-slate-400">{fmtKoor(b.koordinat.lat, b.koordinat.lng)}</p>
+                <p className="font-mono text-[10px] text-slate-400">{fmtKoor(b.koordinat?.lat, b.koordinat?.lng)}</p>
                 <div className="mt-1.5 border-t pt-1.5">
                   {i.last ? (
                     <>
