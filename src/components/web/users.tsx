@@ -301,7 +301,7 @@ export function WebUsers() {
       });
       qc.invalidateQueries({ queryKey: qk.users });
       qc.invalidateQueries({ queryKey: qk.aktivitas });
-      toast.success(`User ${nama} ditambahkan sebagai ${role}. Nama pengguna: ${res.user.username} — sandi awal: ${res.sandiAwal}`);
+      toast.success(`User ${nama} ditambahkan sebagai ${role}. Nama pengguna untuk login: ${res.user.username} — sandi: ${res.sandiAwal}`, { duration: 30000 });
       setOpen(false);
     } catch (e) {
       toast.error((e as Error).message);
