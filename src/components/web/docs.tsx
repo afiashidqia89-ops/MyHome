@@ -17,7 +17,7 @@ const API_LIST: { m: string; p: string; r: string; akses: string }[] = [
   { m: "GET", p: "/api/auth/me", r: "Sesi aktif + daftar binding unit", akses: "login" },
   { m: "POST", p: "/api/auth/logout", r: "Akhiri sesi", akses: "login" },
   { m: "GET", p: "/api/master-data", r: "Checklist 27 item (4 kartu), perumahan, afdeling, kebun, matriks, user (cache offline APK)", akses: "login" },
-  { m: "POST", p: "/api/master/{entity}", r: "Tambah estate / kebun / afdeling / perumahan (ID otomatis dari server)", akses: "ADMIN" },
+  { m: "POST", p: "/api/master/{entity}", r: "Tambah estate / kebun / afdeling / perumahan (ID otomatis dari server; koordinat lat/lng opsional, kosong = NULL)", akses: "ADMIN" },
   { m: "POST", p: "/api/master/import", r: "Unggah XLSX data master — kolom ESTATE, KEBUN, AFDELING, PERUMAHAN (upsert, duplikat dilewati)", akses: "ADMIN" },
   { m: "PATCH", p: "/api/master/{entity}/{id}", r: "Ubah data master: nama, induk, tipe, kapasitas, koordinat", akses: "ADMIN" },
   { m: "DELETE", p: "/api/master/{entity}/{id}", r: "Hapus data master — ditolak 409 bila masih dipakai entitas lain", akses: "ADMIN" },
@@ -183,7 +183,7 @@ export function WebDocs() {
               <li><b>5.</b> ADMIN corporate tidak terikat kebun — dapat memilih kebun pada Rekap & Peta; perubahan tercatat di AksiLog.</li>
             </ol>
             <div className="mt-3 rounded-lg bg-gold-soft p-3 text-[11px] leading-relaxed text-gold-deep">
-              Akun demo (database): budi (AUDITOR, Kebun Mandor) • fauzi (AUDITEE, Afdeling I) • hendra (ADMIN) — sandi <b>demo123</b>. User baru dibuat admin: username otomatis dari nama, sandi awal <b>rumahlayak123</b>.
+              Akun demo (database): budi (AUDITOR, Kebun Mandor) • fauzi (AUDITEE, Afdeling I) • hendra (ADMIN) — sandi <b>demo123</b>. User baru dibuat admin: username otomatis dari nama (huruf kecil tanpa spasi, mis. <b>budisantoso</b>), sandi dibuat admin saat pendaftaran. Saat login, nama lengkap juga dikenali selama hanya cocok dengan satu akun.
             </div>
           </div>
 
