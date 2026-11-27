@@ -12,13 +12,35 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Camera, CheckCircle2, Crosshair, Flag, ImageOff, Loader2, MapPin, Save, ShieldAlert, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DraftTemuan } from "@/lib/types";
+
+// Dropdown native: Select Radix sering gagal menerima ketukan di WebView Android
+// (menu terbuka lalu menutup sendiri / pilihan tidak tersimpan). <select> bawaan
+// memakai picker Android asli sehingga selalu bisa dipilih.
+function PilihNative({ value, onChange, options, placeholder, disabled }: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { id: string; nama: string }[];
+  placeholder: string;
+  disabled?: boolean;
+}) {
+  return (
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-[12px] text-slate-800 outline-none focus:border-forest focus:ring-2 focus:ring-forest/30 disabled:bg-slate-100 disabled:text-slate-400"
+    >
+      <option value="" disabled>{placeholder}</option>
+      {options.map((o) => <option key={o.id} value={o.id}>{o.nama}</option>)}
+    </select>
+  );
+}
 
 // ============ FORM PEMERIKSAAN (estate → kebun → afdeling → perumahan) ============
 // PIC papan kamishibai dihapus — pemeriksa cukup mengisi unit yang diperiksa;
@@ -41,6 +63,21 @@ export function InspectNewScreen() {
   const [kebunId, setKebunId] = useState<string>(pre?.kebunId ?? (master?.kebuns ?? []).find((k) => k.estateId === (pre?.estateId ?? master?.estates[0]?.id))?.id ?? "");
   const [afdelingId, setAfdelingId] = useState<string>(pre?.afdelingId ?? (master?.afdelings ?? []).find((a) => a.kebunId === kebunId)?.id ?? "");
   const [barakId, setBarakId] = useState<string | null>(inspectPreselect?.barakId ?? null);
+
+  // Sinkronkan pilihan dengan master data terbaru: master bisa tiba/berubah setelah
+  // layar dibuka (refetch, cache offline), sehingga id awal kosong atau tidak valid.
+  useEffect(() => {
+    if (!master) return;
+    const es = master.estates.some((e) => e.id === estateId) ? estateId : master.estates[0]?.id ?? "";
+    const kbs = master.kebuns.filter((k) => k.estateId === es);
+    const kb = kbs.some((k) => k.id === kebunId) ? kebunId : kbs[0]?.id ?? "";
+    const afs = master.afdelings.filter((a) => a.kebunId === kb);
+    const af = afs.some((a) => a.id === afdelingId) ? afdelingId : afs[0]?.id ?? "";
+    if (es !== estateId) setEstateId(es);
+    if (kb !== kebunId) setKebunId(kb);
+    if (af !== afdelingId) setAfdelingId(af);
+    if (barakId && !master.baraks.some((b) => b.id === barakId && b.afdelingId === af)) setBarakId(null);
+  }, [master, estateId, kebunId, afdelingId, barakId]);
 
   // Bersihkan preselect saat layar ditutup — buka ulang form mulai lagi dari default.
   useEffect(
@@ -95,33 +132,21 @@ export function InspectNewScreen() {
         {/* FORM: unit yang diperiksa */}
         <div className="rounded-xl border bg-white p-3">
           <p className="text-[10px] font-bold text-slate-500">UNIT YANG DIPERIKSA</p>
+          {!(master?.estates ?? []).length && (
+            <p className="mt-2 rounded-lg bg-amber-50 p-2 text-[11px] text-amber-800">Belum ada unit yang terikat dengan akun ini. Hubungi admin untuk mengatur binding estate/kebun/afdeling/perumahan, lalu tarik data ulang dari Profil.</p>
+          )}
           <div className="mt-2 space-y-2">
             <div>
               <Label className="text-[10px] font-semibold text-slate-500">ESTATE PERIKSA</Label>
-              <Select value={estateId} onValueChange={pilihEstate}>
-                <SelectTrigger className="mt-1 h-9 text-[12px]"><SelectValue placeholder="Pilih estate" /></SelectTrigger>
-                <SelectContent>
-                  {(master?.estates ?? []).map((e) => <SelectItem key={e.id} value={e.id}>{e.nama}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <PilihNative value={estateId} onChange={pilihEstate} options={(master?.estates ?? [])} placeholder="Pilih estate" />
             </div>
             <div>
               <Label className="text-[10px] font-semibold text-slate-500">KEBUN PERIKSA</Label>
-              <Select value={kebunId} onValueChange={pilihKebun}>
-                <SelectTrigger className="mt-1 h-9 text-[12px]"><SelectValue placeholder="Pilih kebun" /></SelectTrigger>
-                <SelectContent>
-                  {kebunList.map((k) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <PilihNative value={kebunId} onChange={pilihKebun} options={kebunList} placeholder="Pilih kebun" />
             </div>
             <div>
               <Label className="text-[10px] font-semibold text-slate-500">AFDELING PERIKSA</Label>
-              <Select value={afdelingId} onValueChange={pilihAfdeling}>
-                <SelectTrigger className="mt-1 h-9 text-[12px]"><SelectValue placeholder="Pilih afdeling" /></SelectTrigger>
-                <SelectContent>
-                  {afdList.map((a) => <SelectItem key={a.id} value={a.id}>{a.nama}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <PilihNative value={afdelingId} onChange={pilihAfdeling} options={afdList} placeholder="Pilih afdeling" />
             </div>
           </div>
         </div>
