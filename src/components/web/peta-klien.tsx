@@ -31,7 +31,9 @@ export function PetaKlien({ filterAfdeling, kebunAktif }: { filterAfdeling: stri
       return { ...b, last, status, tndAktif, itemM, ikon };
     });
 
-  const pusat = dataBarak.length ? [dataBarak[0].koordinat.lat, dataBarak[0].koordinat.lng] : [-0.052, 109.322];
+  // Perumahan tanpa koordinat (dikosongkan saat pendaftaran) tidak punya titik di peta
+  const bertitik = dataBarak.filter((b): b is typeof b & { koordinat: { lat: number; lng: number } } => b.koordinat !== null);
+  const pusat = bertitik.length ? [bertitik[0].koordinat.lat, bertitik[0].koordinat.lng] : [-0.052, 109.322];
 
   return (
     <MapContainer center={pusat as [number, number]} zoom={14} scrollWheelZoom className="h-[430px] w-full rounded-xl">
@@ -39,7 +41,7 @@ export function PetaKlien({ filterAfdeling, kebunAktif }: { filterAfdeling: stri
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      {dataBarak.map((b) => (
+      {bertitik.map((b) => (
         <Marker key={b.id} position={[b.koordinat.lat, b.koordinat.lng]} icon={b.ikon}>
           <Popup>
             <div className="min-w-[220px]">
