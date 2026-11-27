@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { badRequest, forbidden, getSessionUser, unauthorized } from "@/lib/auth";
+import { bacaKoordinat } from "@/lib/koordinat";
 
 export const runtime = "nodejs";
 
@@ -12,9 +13,8 @@ export const runtime = "nodejs";
 const ENTITAS = ["estate", "kebun", "afdeling", "barak"] as const;
 type Entity = (typeof ENTITAS)[number];
 
-const PUSAT_DEFAULT = { lat: -0.052, lng: 109.322 };
-
 function angka(v: unknown, fallback: number): number {
+  if (v === undefined || v === null || String(v).trim() === "") return fallback;
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
 }
@@ -49,36 +49,41 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ entity
   const nama = String(body.nama ?? lama.nama).trim();
   if (!nama) return badRequest("Nama wajib diisi");
 
+  // Koordinat seragam untuk SEMUA level. Bila kunci lat/lng dikirim, nilainya
+  // dipakai apa adanya (kosong = hapus koordinat → NULL); bila tidak dikirim,
+  // koordinat lama dibiarkan.
+  const kirimKoor = "lat" in body || "lng" in body;
+  const koor = kirimKoor ? bacaKoordinat(body.lat, body.lng) : null;
+  if (koor && !koor.ok) return badRequest(koor.error);
+  const dataKoor = koor && koor.ok ? { lat: koor.lat, lng: koor.lng } : {};
+
   let updated: { id: string; nama: string };
-  let labelAksi = nama;
+  const labelAksi = nama;
 
   if (entity === "estate") {
-    updated = await db.estate.update({ where: { id }, data: { nama } });
+    updated = await db.estate.update({ where: { id }, data: { nama, ...dataKoor } });
   } else if (entity === "kebun") {
-    const estateId = String(body.estateId ?? (lama as { estateId: string }).estateId).trim();
+    const cur = await db.kebun.findUnique({ where: { id } });
+    const estateId = String(body.estateId ?? cur?.estateId ?? "").trim();
     if (!(await db.estate.findUnique({ where: { id: estateId } }))) return badRequest("Estate tidak ditemukan");
-    updated = await db.kebun.update({ where: { id }, data: { nama, estateId } });
+    updated = await db.kebun.update({ where: { id }, data: { nama, estateId, ...dataKoor } });
   } else if (entity === "afdeling") {
-    const cur = lama as { kebunId: string; lat: number; lng: number };
-    const kebunId = String(body.kebunId ?? cur.kebunId).trim();
+    const cur = await db.afdeling.findUnique({ where: { id } });
+    const kebunId = String(body.kebunId ?? cur?.kebunId ?? "").trim();
     if (!(await db.kebun.findUnique({ where: { id: kebunId } }))) return badRequest("Kebun tidak ditemukan");
-    updated = await db.afdeling.update({
-      where: { id },
-      data: { nama, kebunId, lat: angka(body.lat, cur.lat), lng: angka(body.lng, cur.lng) },
-    });
+    updated = await db.afdeling.update({ where: { id }, data: { nama, kebunId, ...dataKoor } });
   } else {
-    const cur = lama as { afdelingId: string; tipe: string; kapasitas: number; lat: number; lng: number };
-    const afdelingId = String(body.afdelingId ?? cur.afdelingId).trim();
+    const cur = await db.barak.findUnique({ where: { id } });
+    const afdelingId = String(body.afdelingId ?? cur?.afdelingId ?? "").trim();
     if (!(await db.afdeling.findUnique({ where: { id: afdelingId } }))) return badRequest("Afdeling tidak ditemukan");
     updated = await db.barak.update({
       where: { id },
       data: {
         nama,
         afdelingId,
-        tipe: String(body.tipe ?? cur.tipe).trim() || cur.tipe,
-        kapasitas: Math.max(1, Math.round(angka(body.kapasitas, cur.kapasitas))),
-        lat: angka(body.lat, cur.lat),
-        lng: angka(body.lng, cur.lng),
+        tipe: String(body.tipe ?? cur?.tipe ?? "").trim() || cur?.tipe || "Perumahan",
+        kapasitas: Math.max(1, Math.round(angka(body.kapasitas, cur?.kapasitas ?? 16))),
+        ...dataKoor,
       },
     });
   }
