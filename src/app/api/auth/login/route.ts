@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { badRequest, createSessionToken, rateLimitLogin, serializeUser, setSessionCookie, verifyPassword } from "@/lib/auth";
+import { badRequest, createSessionToken, normalisasiUsername, rapikanNama, rateLimitLogin, serializeUser, setSessionCookie, verifyPassword } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -22,16 +22,46 @@ export async function POST(req: Request) {
     return Response.json({ error: "Terlalu banyak percobaan gagal. Coba lagi dalam 5 menit." }, { status: 429 });
   }
 
-  const user = await db.user.findUnique({
-    where: { username },
-    include: {
-      kebun: { include: { estate: true } },
-      afdeling: true,
-      bindings: { include: { estate: true, kebun: true, afdeling: true, barak: true } },
-    },
-  });
+  const sertakan = {
+    kebun: { include: { estate: true } },
+    afdeling: true,
+    bindings: { include: { estate: true, kebun: true, afdeling: true, barak: true } },
+  } as const;
 
-  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+  // Pencarian akun bertahap — user yang didaftarkan dari web memakai username
+  // otomatis dari nama (huruf kecil tanpa spasi, mis. "Budi Santoso" → "budisantoso"),
+  // padahal orang sering mengetik nama lengkapnya. Maka dicoba berurutan:
+  //   1. username persis seperti diketik;
+  //   2. bentuk baku username (spasi/tanda baca dibuang);
+  //   3. nama lengkap, hanya bila cocok dengan TEPAT satu akun.
+  let user = await db.user.findUnique({ where: { username }, include: sertakan });
+  if (!user) {
+    const baku = normalisasiUsername(username);
+    if (baku && baku !== username) {
+      user = await db.user.findUnique({ where: { username: baku }, include: sertakan });
+    }
+  }
+  if (!user) {
+    const target = rapikanNama(username);
+    const semua = await db.user.findMany({ select: { id: true, nama: true } });
+    const cocok = semua.filter((u) => rapikanNama(u.nama) === target);
+    if (cocok.length === 1) {
+      user = await db.user.findUnique({ where: { id: cocok[0].id }, include: sertakan });
+    }
+  }
+
+  // Sandi: dicoba persis seperti diketik, lalu tanpa spasi di ujung — sandi
+  // saat pendaftaran selalu di-trim, sedangkan keyboard ponsel sering
+  // menambah spasi di akhir kata.
+  let sandiBenar = false;
+  if (user) {
+    sandiBenar = await verifyPassword(password, user.passwordHash);
+    if (!sandiBenar && password !== password.trim()) {
+      sandiBenar = await verifyPassword(password.trim(), user.passwordHash);
+    }
+  }
+
+  if (!user || !sandiBenar) {
     return Response.json({ error: "Nama pengguna atau kata sandi salah" }, { status: 401 });
   }
   if (user.status === "PENDING") {
