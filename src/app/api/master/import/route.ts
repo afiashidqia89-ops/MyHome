@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { badRequest, forbidden, getSessionUser, unauthorized } from "@/lib/auth";
+import { bacaKoordinat } from "@/lib/koordinat";
 import * as XLSX from "xlsx";
 
 export const runtime = "nodejs";
@@ -7,13 +8,12 @@ export const runtime = "nodejs";
 // ============================================================
 // POST /api/master/import — unggah XLSX data master (ADMIN)
 // Kolom wajib : ESTATE, KEBUN, AFDELING, PERUMAHAN
-// Kolom opsional: TIPE, KAPASITAS, LAT, LNG
+// Kolom opsional: TIPE, KAPASITAS, LAT, LNG (koordinat Perumahan; kosong = tanpa koordinat)
 // Semantik    : upsert per hierarki — baris dengan nama yang
 //               sudah ada dilewati, sehingga impor boleh diulang.
 // Hierarki    : Estate -> Kebun -> Afdeling -> Perumahan (tabel: Barak)
 // ============================================================
 
-const PUSAT_DEFAULT = { lat: -0.052, lng: 109.322 }; // pusat Kebun Mandor (fallback koordinat)
 const TIPE_DEFAULT = "Perumahan";
 const KOLOM_WAJIB = ["ESTATE", "KEBUN", "AFDELING", "PERUMAHAN"] as const;
 
@@ -142,12 +142,10 @@ export async function POST(req: Request) {
         hasil.kebunBaru++;
       }
 
-      // 3) Afdeling (koordinat opsional — default pusat kebun)
+      // 3) Afdeling — dibuat tanpa koordinat (koordinat file berlaku untuk Perumahan)
       let afd = petaAfdeling.get(`${kebun.id}|${afdNama.toLowerCase()}`);
       if (!afd) {
-        const lat = angka(ambil(row, "LAT")) ?? PUSAT_DEFAULT.lat;
-        const lng = angka(ambil(row, "LNG")) ?? PUSAT_DEFAULT.lng;
-        afd = await db.afdeling.create({ data: { id: idBaru("AF"), kebunId: kebun.id, nama: afdNama, lat, lng } });
+        afd = await db.afdeling.create({ data: { id: idBaru("AF"), kebunId: kebun.id, nama: afdNama } });
         petaAfdeling.set(`${kebun.id}|${afdNama.toLowerCase()}`, afd);
         hasil.afdelingBaru++;
       }
@@ -158,8 +156,14 @@ export async function POST(req: Request) {
         continue;
       }
       const kap = angka(ambil(row, "KAPASITAS"));
-      const lat = angka(ambil(row, "LAT")) ?? afd.lat;
-      const lng = angka(ambil(row, "LNG")) ?? afd.lng;
+      // Koordinat opsional: kosong → NULL (tidak lagi meminjam koordinat afdeling)
+      const koor = bacaKoordinat(ambil(row, "LAT"), ambil(row, "LNG"));
+      if (!koor.ok) {
+        hasil.gagal++;
+        hasil.errors.push({ baris: barisKe, pesan: koor.error });
+        continue;
+      }
+      const { lat, lng } = koor;
       const dibuat = await db.barak.create({
         data: {
           id: idBaru("B"),
