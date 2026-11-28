@@ -135,7 +135,9 @@ async function request<T>(metode: string, path: string, body?: unknown, init?: R
   // tindak lanjut, verifikasi) saat OFFLINE tetap lewat jalur di bawah.
   if (metode === "POST" && bisaAntre(metode, path)) {
     const badan = { ...(body as Record<string, unknown>), id: idBaru() }; // ID client → kirim ulang aman (idempotent)
-    tambahAntrean({ metode: "POST", path, body: badan, label: labelOp(metode, path, badan) });
+    if (!tambahAntrean({ metode: "POST", path, body: badan, label: labelOp(metode, path, badan) })) {
+      throw new ApiError(0, "Penyimpanan perangkat penuh — data BELUM tersimpan. Sinkronkan data yang menunggu (menu Data) atau hapus foto lama, lalu simpan ulang.");
+    }
     return balasanOffline<T>(metode, path, badan);
   }
 
@@ -164,7 +166,9 @@ async function request<T>(metode: string, path: string, body?: unknown, init?: R
       const badan = metode === "POST" && /\/api\/inspeksi/.test(path)
         ? { ...(body as Record<string, unknown>), id: idBaru() } // ID client → kirim ulang aman (idempotent)
         : body;
-      tambahAntrean({ metode: metode as "POST" | "PATCH" | "DELETE", path, body: badan, label: labelOp(metode, path, body) });
+      if (!tambahAntrean({ metode: metode as "POST" | "PATCH" | "DELETE", path, body: badan, label: labelOp(metode, path, body) })) {
+        throw new ApiError(0, "Penyimpanan perangkat penuh — perubahan BELUM tersimpan. Sinkronkan dulu lalu ulangi.");
+      }
       return balasanOffline<T>(metode, path, badan);
     }
     if (metode !== "GET") throw new ApiError(0, `Butuh koneksi server untuk perintah ini. ${EROR_JARINGAN}`);
