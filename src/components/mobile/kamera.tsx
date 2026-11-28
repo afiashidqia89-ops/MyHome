@@ -135,8 +135,8 @@ export function KameraBawaan({ judul, sub, onHasil, onTutup }: KameraBawaanProps
       <div className="flex shrink-0 items-center gap-2 bg-black/80 px-4 py-2.5">
         <Camera className="h-4 w-4 text-gold" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[12px] font-bold leading-tight">Kamera RumahLayak</p>
-          <p className="truncate text-[9.5px] text-white/60">{judul}</p>
+          <p className="truncate text-[13px] font-bold leading-tight">Kamera RumahLayak</p>
+          <p className="truncate text-[10.5px] text-white/60">{judul}</p>
         </div>
         <button onClick={onTutup} aria-label="Tutup kamera" className="rounded-full bg-white/15 p-2 text-white transition hover:bg-white/25">
           <X className="h-4 w-4" />
@@ -161,19 +161,19 @@ export function KameraBawaan({ judul, sub, onHasil, onTutup }: KameraBawaanProps
         {tahap === "menyiapkan" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 text-center">
             <Loader2 className="h-7 w-7 animate-spin text-white/70" />
-            <p className="text-[11px] text-white/70">Menyiapkan kamera...</p>
+            <p className="text-[12px] text-white/70">Menyiapkan kamera...</p>
           </div>
         )}
 
         {tahap === "gagal" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900 p-6 text-center">
             <Camera className="h-10 w-10 text-white/30" />
-            <p className="text-[13px] font-bold">Kamera bawaan tidak dapat dibuka</p>
-            <p className="text-[11px] leading-relaxed text-white/60">{alasan}</p>
-            <Button variant="outline" onClick={() => void bukaKameraPerangkat()} className="mt-1 h-10 border-white/30 bg-transparent text-[12px] text-white hover:bg-white/10">
+            <p className="text-[14px] font-bold">Kamera bawaan tidak dapat dibuka</p>
+            <p className="text-[12px] leading-relaxed text-white/60">{alasan}</p>
+            <Button variant="outline" onClick={() => void bukaKameraPerangkat()} className="mt-1 h-10 border-white/30 bg-transparent text-[13px] text-white hover:bg-white/10">
               <Camera className="mr-1.5 h-4 w-4" /> Buka Kamera Perangkat (cadangan)
             </Button>
-            <Button variant="ghost" onClick={onTutup} className="h-9 text-[12px] text-white/70">
+            <Button variant="ghost" onClick={onTutup} className="h-9 text-[13px] text-white/70">
               Tutup
             </Button>
           </div>
@@ -184,10 +184,10 @@ export function KameraBawaan({ judul, sub, onHasil, onTutup }: KameraBawaanProps
       <div className="shrink-0 bg-black px-6 pb-7 pt-4">
         {tahap === "pratinjau" && pratinjau ? (
           <div className="flex items-center justify-center gap-3">
-            <Button variant="outline" onClick={ulangi} className="h-12 flex-1 border-white/30 bg-transparent text-[12.5px] font-bold text-white hover:bg-white/10">
+            <Button variant="outline" onClick={ulangi} className="h-12 flex-1 border-white/30 bg-transparent text-[13.5px] font-bold text-white hover:bg-white/10">
               <RefreshCw className="mr-1.5 h-4 w-4" /> Ulangi
             </Button>
-            <Button onClick={pakai} className="h-12 flex-1 bg-forest text-[12.5px] font-bold hover:bg-forest-deep">
+            <Button onClick={pakai} className="h-12 flex-1 bg-forest text-[13.5px] font-bold hover:bg-forest-deep">
               <Check className="mr-1.5 h-4 w-4" /> Pakai Foto
             </Button>
           </div>
@@ -206,7 +206,7 @@ export function KameraBawaan({ judul, sub, onHasil, onTutup }: KameraBawaanProps
             <span className="h-11 w-11" />
           </div>
         )}
-        <p className="mt-3 text-center text-[9.5px] leading-relaxed text-white/40">
+        <p className="mt-3 text-center text-[10.5px] leading-relaxed text-white/40">
           Foto dikompres & diberi watermark otomatis: {sub}
         </p>
       </div>

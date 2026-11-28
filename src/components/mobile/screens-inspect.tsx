@@ -34,7 +34,7 @@ function PilihNative({ value, onChange, options, placeholder, disabled }: {
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
-      className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-[12px] text-slate-800 outline-none focus:border-forest focus:ring-2 focus:ring-forest/30 disabled:bg-slate-100 disabled:text-slate-400"
+      className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-[13px] text-slate-800 outline-none focus:border-forest focus:ring-2 focus:ring-forest/30 disabled:bg-slate-100 disabled:text-slate-400"
     >
       <option value="" disabled>{placeholder}</option>
       {options.map((o) => <option key={o.id} value={o.id}>{o.nama}</option>)}
@@ -131,27 +131,27 @@ export function InspectNewScreen() {
       <div className="flex-1 overflow-y-auto thin-scroll p-3">
         {/* FORM: unit yang diperiksa */}
         <div className="rounded-xl border bg-white p-3">
-          <p className="text-[10px] font-bold text-slate-500">UNIT YANG DIPERIKSA</p>
+          <p className="text-[11px] font-bold text-slate-500">UNIT YANG DIPERIKSA</p>
           {!(master?.estates ?? []).length && (
-            <p className="mt-2 rounded-lg bg-amber-50 p-2 text-[11px] text-amber-800">Belum ada unit yang terikat dengan akun ini. Hubungi admin untuk mengatur binding estate/kebun/afdeling/perumahan, lalu tarik data ulang dari Profil.</p>
+            <p className="mt-2 rounded-lg bg-amber-50 p-2 text-[12px] text-amber-800">Belum ada unit yang terikat dengan akun ini. Hubungi admin untuk mengatur binding estate/kebun/afdeling/perumahan, lalu tarik data ulang dari menu Data.</p>
           )}
           <div className="mt-2 space-y-2">
             <div>
-              <Label className="text-[10px] font-semibold text-slate-500">ESTATE PERIKSA</Label>
+              <Label className="text-[11px] font-semibold text-slate-500">ESTATE PERIKSA</Label>
               <PilihNative value={estateId} onChange={pilihEstate} options={(master?.estates ?? [])} placeholder="Pilih estate" />
             </div>
             <div>
-              <Label className="text-[10px] font-semibold text-slate-500">KEBUN PERIKSA</Label>
+              <Label className="text-[11px] font-semibold text-slate-500">KEBUN PERIKSA</Label>
               <PilihNative value={kebunId} onChange={pilihKebun} options={kebunList} placeholder="Pilih kebun" />
             </div>
             <div>
-              <Label className="text-[10px] font-semibold text-slate-500">AFDELING PERIKSA</Label>
+              <Label className="text-[11px] font-semibold text-slate-500">AFDELING PERIKSA</Label>
               <PilihNative value={afdelingId} onChange={pilihAfdeling} options={afdList} placeholder="Pilih afdeling" />
             </div>
           </div>
         </div>
 
-        <p className="mb-2 mt-4 text-[11px] font-semibold text-slate-500">PERUMAHAN YANG DIPERIKSA{afdDipilih ? "" : " — PILIH AFDELING DULU"}</p>
+        <p className="mb-2 mt-4 text-[12px] font-semibold text-slate-500">PERUMAHAN YANG DIPERIKSA{afdDipilih ? "" : " — PILIH AFDELING DULU"}</p>
         <div className="space-y-2">
           {barakList.map((b) => {
             const last = auditTerakhir(b.id);
@@ -159,21 +159,21 @@ export function InspectNewScreen() {
               <button key={b.id} onClick={() => setBarakId(b.id)} className={cn("w-full rounded-xl border p-3 text-left transition", barakId === b.id ? "border-forest bg-forest-soft ring-1 ring-forest" : "border-slate-200 bg-white hover:border-forest/50")}>
                 <div className="flex items-center justify-between">
                   {/* Afdeling sudah dipilih — nama tampil tanpa prefix afdeling */}
-                  <span className="text-[13px] font-bold text-slate-800">{labelBarak(b.nama)}</span>
-                  {last ? <ChipStatus s={last.results.some((r) => r.status === "M") ? "M" : "H"} className="scale-90" /> : <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400">Belum diaudit</span>}
+                  <span className="text-[14px] font-bold text-slate-800">{labelBarak(b.nama)}</span>
+                  {last ? <ChipStatus s={last.results.some((r) => r.status === "M") ? "M" : "H"} className="scale-90" /> : <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-400">Belum diaudit</span>}
                 </div>
-                <p className="mt-0.5 text-[11px] text-slate-500">kapasitas {b.kapasitas} orang</p>
-                <p className="mt-1 flex items-center gap-1 text-[10px] text-slate-400"><MapPin className="h-3 w-3" /> {fmtKoor(b.koordinat?.lat, b.koordinat?.lng)}{last ? ` • audit ${fmtTanggal(last.tanggal)}` : ""}</p>
+                <p className="mt-0.5 text-[12px] text-slate-500">kapasitas {b.kapasitas} orang</p>
+                <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400"><MapPin className="h-3 w-3" /> {fmtKoor(b.koordinat?.lat, b.koordinat?.lng)}{last ? ` • audit ${fmtTanggal(last.tanggal)}` : ""}</p>
               </button>
             );
           })}
           {!barakList.length && (
-            <p className="rounded-xl border border-dashed border-slate-300 bg-white p-3 text-[11px] text-slate-400">Belum ada perumahan pada afdeling ini.</p>
+            <p className="rounded-xl border border-dashed border-slate-300 bg-white p-3 text-[12px] text-slate-400">Belum ada perumahan pada afdeling ini.</p>
           )}
         </div>
       </div>
       <div className="shrink-0 border-t bg-white p-3">
-        <Button onClick={mulai} disabled={!barakId} className="h-12 w-full bg-forest text-[13px] font-bold hover:bg-forest-deep">
+        <Button onClick={mulai} disabled={!barakId} className="h-12 w-full bg-forest text-[14px] font-bold hover:bg-forest-deep">
           <Camera className="mr-1.5 h-4 w-4" /> Mulai Pemeriksaan — 27 Item
         </Button>
       </div>
@@ -282,7 +282,7 @@ export function InspectScreen() {
       refresh();
       discardDraft();
       if (res.offline) {
-        toast.success(`Aman di perangkat sebagai ${res.inspeksi.kode}${res.temuanDibuat ? ` • ${res.temuanDibuat} temuan dicatat` : ""} — kirim lewat "Sinkron Sekarang" di Beranda/Profil`);
+        toast.success(`Aman di perangkat sebagai ${res.inspeksi.kode}${res.temuanDibuat ? ` • ${res.temuanDibuat} temuan dicatat` : ""} — kirim lewat menu Data`);
       } else {
         toast.success(`Tersimpan ke server sebagai ${res.inspeksi.kode}${res.temuanDibuat ? ` • ${res.temuanDibuat} temuan dibuat` : ""}`);
       }
@@ -300,30 +300,30 @@ export function InspectScreen() {
         title="Pemeriksaan Baru"
         sub={`${namaBarakSingkat(namaBarak(barak.id), afdNama)} • ${master.kebuns.find((k) => k.id === master.afdelings.find((a) => a.id === barak.afdelingId)?.kebunId)?.nama ?? "-"} / ${afdNama}`}
         onBack={() => { discardDraft(); setMobileScreen("peta"); }}
-        right={<span className="rounded bg-white/20 px-1.5 py-0.5 text-[9px] font-bold">DRAFT</span>}
+        right={<span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-bold">DRAFT</span>}
       />
       <div className="flex-1 overflow-y-auto thin-scroll p-3">
         {/* TAG KOORDINAT — wajib sebelum simpan; cukup 1x per rumah */}
         <div className="rounded-xl border bg-white p-3">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-bold text-slate-500">KOORDINAT PEMERIKSAAN (TAG 1x)</p>
-            {draft.gps && <span className="rounded bg-green-50 px-1.5 py-0.5 text-[9px] font-bold text-green-700">SUDAH DITAG</span>}
+            <p className="text-[11px] font-bold text-slate-500">KOORDINAT PEMERIKSAAN (TAG 1x)</p>
+            {draft.gps && <span className="rounded bg-green-50 px-1.5 py-0.5 text-[10px] font-bold text-green-700">SUDAH DITAG</span>}
           </div>
           {draft.gps ? (
             <>
-              <p className="mt-1 font-mono text-[12px] text-slate-700">{fmtKoor(draft.gps.lat, draft.gps.lng)}</p>
-              <p className="text-[10px] text-slate-400">Akurasi ± {draft.gps.acc.toFixed(1)} m • ditag sekali untuk seluruh item &amp; foto rumah ini</p>
+              <p className="mt-1 font-mono text-[13px] text-slate-700">{fmtKoor(draft.gps.lat, draft.gps.lng)}</p>
+              <p className="text-[11px] text-slate-400">Akurasi ± {draft.gps.acc.toFixed(1)} m • ditag sekali untuk seluruh item &amp; foto rumah ini</p>
               {/* RE-TAGGING: ulangi pengambilan GPS bila akurasi rendah (di dalam gedung/
                   di bawah atap) — koordinat lama diganti dengan yang lebih presisi. */}
-              <Button onClick={tagKoordinat} disabled={menandai} variant="outline" className="mt-2 h-9 w-full border-dashed text-[11px] text-forest hover:bg-forest-soft">
+              <Button onClick={tagKoordinat} disabled={menandai} variant="outline" className="mt-2 h-9 w-full border-dashed text-[12px] text-forest hover:bg-forest-soft">
                 {menandai ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Crosshair className="mr-1.5 h-3.5 w-3.5" />}
                 {menandai ? "Mengambil koordinat baru..." : "Tag Ulang Koordinat (perbaiki akurasi)"}
               </Button>
             </>
           ) : (
             <>
-              <p className="mt-1 text-[10.5px] leading-relaxed text-slate-500">Tekan tombol saat Anda berada di perumahan. Koordinat diambil <b>1 kali</b> per pemeriksaan rumah — bukan dari koordinat foto.</p>
-              <Button onClick={tagKoordinat} disabled={menandai} className="mt-2 h-10 w-full bg-forest text-[12px] font-bold hover:bg-forest-deep">
+              <p className="mt-1 text-[11.5px] leading-relaxed text-slate-500">Tekan tombol saat Anda berada di perumahan. Koordinat diambil <b>1 kali</b> per pemeriksaan rumah — bukan dari koordinat foto.</p>
+              <Button onClick={tagKoordinat} disabled={menandai} className="mt-2 h-10 w-full bg-forest text-[13px] font-bold hover:bg-forest-deep">
                 {menandai ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Crosshair className="mr-1.5 h-4 w-4" />}
                 {menandai ? "Menandai koordinat..." : "Tag Koordinat Sekarang"}
               </Button>
@@ -332,21 +332,21 @@ export function InspectScreen() {
         </div>
 
         <div className="mt-3 rounded-xl border bg-white p-3">
-          <div className="flex items-center justify-between text-[11px] text-slate-500">
+          <div className="flex items-center justify-between text-[12px] text-slate-500">
             <span>Progres penilaian</span>
             <span className="font-bold text-forest">{dinilai}/27 item</span>
           </div>
           <Progress value={(dinilai / 27) * 100} className="mt-2 h-2" />
-          <div className="mt-2 flex gap-3 text-[11px]">
+          <div className="mt-2 flex gap-3 text-[12px]">
             <span className="flex items-center gap-1 text-green-700"><CheckCircle2 className="h-3.5 w-3.5" /> {hijau} layak</span>
             <span className="flex items-center gap-1 text-red-600"><X className="h-3.5 w-3.5" /> {merah} tidak layak</span>
             <span className="ml-auto text-slate-400">Auditor: {session.nama}</span>
           </div>
           {draft.temuan.length > 0 && (
-            <p className="mt-2 flex items-center gap-1 rounded bg-red-50 px-2 py-1 text-[10px] font-semibold text-red-700"><Flag className="h-3 w-3" /> {draft.temuan.length} temuan akan dibuat saat disimpan</p>
+            <p className="mt-2 flex items-center gap-1 rounded bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700"><Flag className="h-3 w-3" /> {draft.temuan.length} temuan akan dibuat saat disimpan</p>
           )}
           {itemBerikutnya && dinilai > 0 && (
-            <p className="mt-2 border-t pt-2 text-[10px] text-slate-400">Berikutnya: <b className="text-forest">{itemBerikutnya.id}</b> — {itemBerikutnya.label}</p>
+            <p className="mt-2 border-t pt-2 text-[11px] text-slate-400">Berikutnya: <b className="text-forest">{itemBerikutnya.id}</b> — {itemBerikutnya.label}</p>
           )}
         </div>
 
@@ -359,10 +359,10 @@ export function InspectScreen() {
               <AccordionItem key={k.id} value={k.id} className="rounded-xl border bg-white px-3">
                 <AccordionTrigger className="py-3 hover:no-underline">
                   <div className="flex items-center gap-2 text-left">
-                    <span className="text-[12px] font-bold text-slate-700">{k.nama}</span>
+                    <span className="text-[13px] font-bold text-slate-700">{k.nama}</span>
                     <span className="ml-auto mr-2 flex items-center gap-1">
-                      {merahKartu.length > 0 && <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">{merahKartu.length} M</span>}
-                      <span className="text-[10px] text-slate-400">{nilai.length}/{items.length}</span>
+                      {merahKartu.length > 0 && <span className="rounded bg-red-100 px-1.5 py-0.5 text-[11px] font-bold text-red-600">{merahKartu.length} M</span>}
+                      <span className="text-[11px] text-slate-400">{nilai.length}/{items.length}</span>
                     </span>
                   </div>
                 </AccordionTrigger>
@@ -377,9 +377,9 @@ export function InspectScreen() {
                           onClick={() => { store.setActiveItem(it.id); setMobileScreen("inspect-item"); }}
                           className="flex w-full items-center gap-2 py-2.5 text-left hover:bg-slate-50"
                         >
-                          <span className="text-[11px] text-slate-400">{it.id}</span>
-                          <span className="flex-1 text-[12px] font-medium text-slate-700">{it.label}</span>
-                          {r && r.fotos.length > 0 && <span className="text-[10px] text-forest">{r.fotos.length} foto</span>}
+                          <span className="text-[12px] text-slate-400">{it.id}</span>
+                          <span className="flex-1 text-[13px] font-medium text-slate-700">{it.label}</span>
+                          {r && r.fotos.length > 0 && <span className="text-[11px] text-forest">{r.fotos.length} foto</span>}
                           {r?.catatan ? <span className="h-1.5 w-1.5 rounded-full bg-gold" title="Ada catatan" /> : null}
                           <ChipStatus s={r?.status ?? "-"} />
                         </button>
@@ -393,11 +393,11 @@ export function InspectScreen() {
         </Accordion>
       </div>
       <div className="shrink-0 space-y-1.5 border-t bg-white p-3">
-        <Button onClick={simpan} disabled={menyimpan} className="h-11 w-full bg-forest text-[12px] font-bold hover:bg-forest-deep">
+        <Button onClick={simpan} disabled={menyimpan} className="h-11 w-full bg-forest text-[13px] font-bold hover:bg-forest-deep">
           {menyimpan ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
           {menyimpan ? "Menyimpan..." : "Simpan Pemeriksaan"}
         </Button>
-        <p className="text-center text-[10px] leading-relaxed text-slate-400">Data langsung AMAN di perangkat (tanpa menunggu server) — terkirim lewat tombol "Sinkron Sekarang" di Beranda/Profil atau otomatis saat online</p>
+        <p className="text-center text-[11px] leading-relaxed text-slate-400">Data langsung AMAN di perangkat (tanpa menunggu server) — terkirim lewat tombol "Sinkron Sekarang" di menu Data atau otomatis saat online</p>
       </div>
     </div>
   );
@@ -471,37 +471,37 @@ export function InspectItemScreen() {
         title={`${item.id} — ${item.label}`}
         sub={kartu?.nama ?? ""}
         onBack={() => { setActiveItem(null); setMobileScreen("inspect"); }}
-        right={<span className="rounded bg-white/15 px-1.5 py-0.5 text-[9px] font-bold">{kartu?.singkat}</span>}
+        right={<span className="rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-bold">{kartu?.singkat}</span>}
       />
       <div className="flex-1 space-y-3 overflow-y-auto thin-scroll p-3">
         <div className="rounded-xl border border-dashed border-forest/40 bg-forest-soft p-3">
-          <p className="text-[10px] font-bold text-forest">STANDAR LAYAK (HIJAU)</p>
-          <p className="mt-1 text-[11px] leading-relaxed text-slate-600">{item.standar}</p>
+          <p className="text-[11px] font-bold text-forest">STANDAR LAYAK (HIJAU)</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-slate-600">{item.standar}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => { setDraftStatus(item.id, "H"); toast.success("Item dinilai LAYAK (Hijau)"); }} className={cn("rounded-xl border-2 p-3 text-center transition", r?.status === "H" ? "border-green-600 bg-green-50" : "border-slate-200 bg-white hover:border-green-400")}>
             <CheckCircle2 className={cn("mx-auto h-6 w-6", r?.status === "H" ? "text-green-600" : "text-slate-300")} />
-            <p className={cn("mt-1 text-[12px] font-bold", r?.status === "H" ? "text-green-700" : "text-slate-500")}>HIJAU — Layak</p>
+            <p className={cn("mt-1 text-[13px] font-bold", r?.status === "H" ? "text-green-700" : "text-slate-500")}>HIJAU — Layak</p>
           </button>
           <button onClick={() => setDraftStatus(item.id, "M")} className={cn("rounded-xl border-2 p-3 text-center transition", r?.status === "M" ? "border-red-600 bg-red-50" : "border-slate-200 bg-white hover:border-red-400")}>
             <X className={cn("mx-auto h-6 w-6", r?.status === "M" ? "text-red-600" : "text-slate-300")} />
-            <p className={cn("mt-1 text-[12px] font-bold", r?.status === "M" ? "text-red-700" : "text-slate-500")}>MERAH — Tidak Layak</p>
+            <p className={cn("mt-1 text-[13px] font-bold", r?.status === "M" ? "text-red-700" : "text-slate-500")}>MERAH — Tidak Layak</p>
           </button>
         </div>
 
         <div className="rounded-xl border bg-white p-3">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-bold text-slate-500">KOORDINAT PEMERIKSAAN (TAG 1x)</p>
-            {draft.gps ? <span className="rounded bg-green-50 px-1.5 py-0.5 text-[9px] font-bold text-green-700">TERKUNCI</span> : <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">BELUM DITAG</span>}
+            <p className="text-[11px] font-bold text-slate-500">KOORDINAT PEMERIKSAAN (TAG 1x)</p>
+            {draft.gps ? <span className="rounded bg-green-50 px-1.5 py-0.5 text-[10px] font-bold text-green-700">TERKUNCI</span> : <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">BELUM DITAG</span>}
           </div>
-          <p className="mt-1 font-mono text-[12px] text-slate-700">{fmtKoor(koordinat?.lat, koordinat?.lng)}</p>
-          <p className="text-[10px] text-slate-400">Ditag sekali di depan rumah — otomatis menempel pada setiap foto (bukan koordinat foto)</p>
+          <p className="mt-1 font-mono text-[13px] text-slate-700">{fmtKoor(koordinat?.lat, koordinat?.lng)}</p>
+          <p className="text-[11px] text-slate-400">Ditag sekali di depan rumah — otomatis menempel pada setiap foto (bukan koordinat foto)</p>
         </div>
 
         <div className="rounded-xl border bg-white p-3">
-          <p className="text-[10px] font-bold text-slate-500">FOTO PEMERIKSAAN (WAJIB UNTUK STATUS MERAH)</p>
-          <Button onClick={bukaKamera} variant="outline" className="mt-2 h-10 w-full border-dashed text-[12px] text-forest">
+          <p className="text-[11px] font-bold text-slate-500">FOTO PEMERIKSAAN (WAJIB UNTUK STATUS MERAH)</p>
+          <Button onClick={bukaKamera} variant="outline" className="mt-2 h-10 w-full border-dashed text-[13px] text-forest">
             <Camera className="mr-1.5 h-4 w-4" />
             Ambil Foto (Kamera Bawaan Aplikasi)
           </Button>
@@ -515,13 +515,13 @@ export function InspectItemScreen() {
               ))}
             </div>
           ) : (
-            <p className="mt-2 flex items-center gap-1 text-[10px] text-slate-400"><ImageOff className="h-3 w-3" /> Belum ada foto pada item ini</p>
+            <p className="mt-2 flex items-center gap-1 text-[11px] text-slate-400"><ImageOff className="h-3 w-3" /> Belum ada foto pada item ini</p>
           )}
         </div>
 
         <div className="rounded-xl border bg-white p-3">
-          <Label className="text-[10px] font-bold text-slate-500">CATATAN AUDITOR</Label>
-          <Textarea value={r?.catatan ?? ""} onChange={(e) => setDraftNote(item.id, e.target.value)} placeholder="Kondisi lapangan, lokasi detail di perumahan, kebutuhan material..." className="mt-1.5 min-h-[70px] text-[12px]" />
+          <Label className="text-[11px] font-bold text-slate-500">CATATAN AUDITOR</Label>
+          <Textarea value={r?.catatan ?? ""} onChange={(e) => setDraftNote(item.id, e.target.value)} placeholder="Kondisi lapangan, lokasi detail di perumahan, kebutuhan material..." className="mt-1.5 min-h-[70px] text-[13px]" />
         </div>
 
         {r?.status === "M" && (
@@ -529,33 +529,33 @@ export function InspectItemScreen() {
             {temuanAda ? (
               <div className="flex w-full items-center gap-2 rounded-lg bg-white p-2.5">
                 <ShieldAlert className="h-5 w-5 shrink-0 text-red-600" />
-                <span className="text-[11px] text-slate-700">Temuan <b>Level {temuanAda.level}</b> sudah dicatat untuk item ini — akan dibuat saat disimpan</span>
+                <span className="text-[12px] text-slate-700">Temuan <b>Level {temuanAda.level}</b> sudah dicatat untuk item ini — akan dibuat saat disimpan</span>
               </div>
             ) : (
               <>
-                <p className="flex items-center gap-1.5 text-[11px] font-bold text-red-700"><Flag className="h-4 w-4" /> CATAT TEMUAN & TETAPKAN JALUR APPROVAL (WAJIB)</p>
+                <p className="flex items-center gap-1.5 text-[12px] font-bold text-red-700"><Flag className="h-4 w-4" /> CATAT TEMUAN & TETAPKAN JALUR APPROVAL (WAJIB)</p>
                 <div className="mt-2 grid grid-cols-2 gap-1.5">
                   {matriks.map((a) => (
                     <button key={a.level} onClick={() => setLevel(a.level)} className={cn("rounded-lg border p-2 text-left", level === a.level ? "border-forest bg-forest-soft" : "border-slate-200 bg-white")}>
-                      <span className="text-[11px] font-bold text-forest">Lv.{a.level}</span>
-                      <p className="text-[9.5px] leading-tight text-slate-600">{a.jalur}</p>
-                      <p className="text-[9px] text-slate-400">{a.sla.split("(")[0]}</p>
+                      <span className="text-[12px] font-bold text-forest">Lv.{a.level}</span>
+                      <p className="text-[10.5px] leading-tight text-slate-600">{a.jalur}</p>
+                      <p className="text-[10px] text-slate-400">{a.sla.split("(")[0]}</p>
                     </button>
                   ))}
                 </div>
                 <div className="mt-2">
-                  <Label className="text-[10px] font-bold text-slate-500">URAIAN TEMUAN</Label>
-                  <Textarea value={uraian || r?.catatan || ""} onChange={(e) => setUraian(e.target.value)} placeholder="Jelaskan temuan, dampak, dan lokasi detail..." className="mt-1 min-h-[64px] bg-white text-[12px]" />
+                  <Label className="text-[11px] font-bold text-slate-500">URAIAN TEMUAN</Label>
+                  <Textarea value={uraian || r?.catatan || ""} onChange={(e) => setUraian(e.target.value)} placeholder="Jelaskan temuan, dampak, dan lokasi detail..." className="mt-1 min-h-[64px] bg-white text-[13px]" />
                 </div>
                 {level >= 3 && (
                   <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2">
-                    <p className="text-[10px] font-bold text-amber-700">MITIGASI DARURAT (WAJIB — Langkah 2 Guideline)</p>
-                    <Textarea value={mitigasi} onChange={(e) => setMitigasi(e.target.value)} placeholder="Tindakan sementara hari itu juga: suplai air tangki, pasang terpal, genset cadangan..." className="mt-1 min-h-[54px] bg-white text-[11px]" />
-                    <Label className="mt-1.5 block text-[10px] font-bold text-slate-500">NO. WO / RAB (opsional)</Label>
-                    <input value={noWO} onChange={(e) => setNoWO(e.target.value)} placeholder="contoh: WO-014" className="mt-1 w-full rounded-md border bg-white px-2 py-1.5 text-[11px]" />
+                    <p className="text-[11px] font-bold text-amber-700">MITIGASI DARURAT (WAJIB — Langkah 2 Guideline)</p>
+                    <Textarea value={mitigasi} onChange={(e) => setMitigasi(e.target.value)} placeholder="Tindakan sementara hari itu juga: suplai air tangki, pasang terpal, genset cadangan..." className="mt-1 min-h-[54px] bg-white text-[12px]" />
+                    <Label className="mt-1.5 block text-[11px] font-bold text-slate-500">NO. WO / RAB (opsional)</Label>
+                    <input value={noWO} onChange={(e) => setNoWO(e.target.value)} placeholder="contoh: WO-014" className="mt-1 w-full rounded-md border bg-white px-2 py-1.5 text-[12px]" />
                   </div>
                 )}
-                <Button onClick={catatTemuan} className="mt-2 h-10 w-full bg-red-600 text-[12px] font-bold hover:bg-red-700">
+                <Button onClick={catatTemuan} className="mt-2 h-10 w-full bg-red-600 text-[13px] font-bold hover:bg-red-700">
                   <Flag className="mr-1.5 h-4 w-4" /> Catat Temuan — Kartu Kamishibai Dibalik ke MERAH
                 </Button>
               </>

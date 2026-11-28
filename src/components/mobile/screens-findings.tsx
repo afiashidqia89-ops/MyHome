@@ -43,10 +43,10 @@ export function FindingsScreen({ tabAwal = "temuan" }: { tabAwal?: "temuan" | "r
       <ScreenHeader title="Temuan & Riwayat" sub={session?.role === "AUDITEE" ? "Temuan Anda & arsip pemeriksaan (dari server)" : "Temuan, tindak lanjut & arsip pemeriksaan (dari server)"} />
       <div className="shrink-0 space-y-2 border-b bg-white px-3 py-2">
         <div className="grid grid-cols-2 gap-1">
-          <button onClick={() => setTab("temuan")} className={cn("rounded-lg py-2 text-[11px] font-bold", tab === "temuan" ? "bg-forest text-white" : "bg-slate-100 text-slate-600")}>
+          <button onClick={() => setTab("temuan")} className={cn("rounded-lg py-2 text-[12px] font-bold", tab === "temuan" ? "bg-forest text-white" : "bg-slate-100 text-slate-600")}>
             TEMUAN ({findings.length})
           </button>
-          <button onClick={() => setTab("riwayat")} className={cn("rounded-lg py-2 text-[11px] font-bold", tab === "riwayat" ? "bg-forest text-white" : "bg-slate-100 text-slate-600")}>
+          <button onClick={() => setTab("riwayat")} className={cn("rounded-lg py-2 text-[12px] font-bold", tab === "riwayat" ? "bg-forest text-white" : "bg-slate-100 text-slate-600")}>
             RIWAYAT PEMERIKSAAN
           </button>
         </div>
@@ -55,7 +55,7 @@ export function FindingsScreen({ tabAwal = "temuan" }: { tabAwal?: "temuan" | "r
             {FILTERS.map((f) => {
               const n = f.id === "SEMUA" ? findings.length : findings.filter((x) => x.status === f.id).length;
               return (
-                <button key={f.id} onClick={() => setFilter(f.id)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[10.5px] font-semibold", filter === f.id ? "border-forest bg-forest text-white" : "border-slate-200 bg-white text-slate-600")}>
+                <button key={f.id} onClick={() => setFilter(f.id)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold", filter === f.id ? "border-forest bg-forest text-white" : "border-slate-200 bg-white text-slate-600")}>
                   {f.label} ({n})
                 </button>
               );
@@ -65,18 +65,18 @@ export function FindingsScreen({ tabAwal = "temuan" }: { tabAwal?: "temuan" | "r
       </div>
       {tab === "temuan" ? (
         <div className="flex-1 space-y-2 overflow-y-auto thin-scroll p-3">
-          {isLoading && <p className="mt-10 text-center text-[12px] text-slate-400"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> Memuat dari server...</p>}
-          {!isLoading && list.length === 0 && <p className="mt-10 text-center text-[12px] text-slate-400">Tidak ada temuan pada filter ini</p>}
+          {isLoading && <p className="mt-10 text-center text-[13px] text-slate-400"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> Memuat dari server...</p>}
+          {!isLoading && list.length === 0 && <p className="mt-10 text-center text-[13px] text-slate-400">Tidak ada temuan pada filter ini</p>}
           {list.map((f) => (
             <button key={f.id} onClick={() => { setActiveFinding(f.id); setMobileScreen("finding-detail"); }} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-forest">
               <div className="flex items-center gap-2">
                 <LevelBadge level={f.level} />
-                <span className="text-[12px] font-bold text-slate-800">{f.kode}</span>
+                <span className="text-[13px] font-bold text-slate-800">{f.kode}</span>
                 <StatusTemuanBadge status={f.status} />
               </div>
-              <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-600">{f.uraian}</p>
+              <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-slate-600">{f.uraian}</p>
               <div className="mt-2 flex items-center justify-between border-t pt-2">
-                <span className="flex items-center gap-1 text-[10px] text-slate-400"><MapPin className="h-3 w-3" /> {namaBarak(f.barakId)} • {namaAfdeling(f.afdelingId)}</span>
+                <span className="flex items-center gap-1 text-[11px] text-slate-400"><MapPin className="h-3 w-3" /> {namaBarak(f.barakId)} • {namaAfdeling(f.afdelingId)}</span>
                 <SlaInfo target={f.targetSelesai} />
               </div>
             </button>
@@ -195,38 +195,38 @@ export function FindingDetailScreen() {
             <StatusTemuanBadge status={f.status} />
             <SlaInfo target={f.targetSelesai} />
           </div>
-          <p className="mt-2 text-[12px] font-semibold text-slate-700">Uraian Temuan Auditor</p>
-          <p className="mt-1 text-[11.5px] leading-relaxed text-slate-600">{f.uraian}</p>
-          <p className="mt-2 text-[10px] text-slate-400">Dibuat {fmtTanggalWaktu(f.createdAt)} oleh auditor • PIC perbaikan: {auditee?.nama ?? "belum ditugaskan"}</p>
+          <p className="mt-2 text-[13px] font-semibold text-slate-700">Uraian Temuan Auditor</p>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-slate-600">{f.uraian}</p>
+          <p className="mt-2 text-[11px] text-slate-400">Dibuat {fmtTanggalWaktu(f.createdAt)} oleh auditor • PIC perbaikan: {auditee?.nama ?? "belum ditugaskan"}</p>
         </div>
 
         {lvl && (
           <div className="rounded-xl border border-forest/30 bg-forest-soft p-3">
-            <p className="text-[10px] font-bold text-forest">JALUR & APPROVAL (MATRIKS GUIDELINE)</p>
-            <p className="mt-1 text-[12px] font-bold text-slate-700">Level {f.level} — {lvl.jalur}</p>
-            <p className="text-[10.5px] text-slate-500">Sumber dana: {lvl.sumberDana}</p>
-            <div className="mt-2 flex items-center gap-1 text-[10px]">
+            <p className="text-[11px] font-bold text-forest">JALUR & APPROVAL (MATRIKS GUIDELINE)</p>
+            <p className="mt-1 text-[13px] font-bold text-slate-700">Level {f.level} — {lvl.jalur}</p>
+            <p className="text-[11.5px] text-slate-500">Sumber dana: {lvl.sumberDana}</p>
+            <div className="mt-2 flex items-center gap-1 text-[11px]">
               <span className="rounded bg-white px-1.5 py-1 shadow-sm">{lvl.pengaju}</span>
               <span className="text-slate-400">→</span>
               <span className="rounded bg-white px-1.5 py-1 shadow-sm">{lvl.verifikator}</span>
               <span className="text-slate-400">→</span>
               <span className="rounded bg-gold px-1.5 py-1 font-semibold text-forest-deep">{lvl.final}</span>
             </div>
-            <p className="mt-2 text-[10px] text-slate-500">SLA: {lvl.sla}</p>
-            {f.noWO && <p className="mt-1 inline-block rounded bg-white px-1.5 py-0.5 text-[10px] font-bold text-forest">No. WO: {f.noWO}</p>}
+            <p className="mt-2 text-[11px] text-slate-500">SLA: {lvl.sla}</p>
+            {f.noWO && <p className="mt-1 inline-block rounded bg-white px-1.5 py-0.5 text-[11px] font-bold text-forest">No. WO: {f.noWO}</p>}
           </div>
         )}
 
         {f.mitigasiDarurat && (
           <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
-            <p className="flex items-center gap-1.5 text-[11px] font-bold text-amber-800"><ShieldCheck className="h-4 w-4" /> MITIGASI DARURAT (Hari Itu Juga)</p>
-            <p className="mt-1 text-[11px] leading-relaxed text-amber-900">{f.mitigasiDarurat}</p>
+            <p className="flex items-center gap-1.5 text-[12px] font-bold text-amber-800"><ShieldCheck className="h-4 w-4" /> MITIGASI DARURAT (Hari Itu Juga)</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-amber-900">{f.mitigasiDarurat}</p>
           </div>
         )}
 
         <div className="rounded-xl border bg-white p-3">
-          <p className="text-[10px] font-bold text-slate-500">TIMELINE TINDAK LANJUT ({f.followUps.length})</p>
-          {f.followUps.length === 0 && <p className="mt-2 text-[11px] italic text-slate-400">Belum ada tindak lanjut dari auditee.</p>}
+          <p className="text-[11px] font-bold text-slate-500">TIMELINE TINDAK LANJUT ({f.followUps.length})</p>
+          {f.followUps.length === 0 && <p className="mt-2 text-[12px] italic text-slate-400">Belum ada tindak lanjut dari auditee.</p>}
           <div className="mt-2 space-y-2">
             {f.followUps.map((fu) => {
               const oleh = master?.users.find((u) => u.id === fu.olehId);
@@ -234,14 +234,14 @@ export function FindingDetailScreen() {
                 <div key={fu.id} className="rounded-lg border border-slate-100 bg-slate-50 p-2.5">
                   <div className="flex items-center gap-1.5">
                     {fu.status === "VERIFIED" ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <ClipboardCheck className="h-3.5 w-3.5 text-sky-600" />}
-                    <span className="text-[11px] font-bold text-slate-700">{oleh?.nama ?? "User"}</span>
-                    <span className={cn("ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold", fu.status === "VERIFIED" ? "bg-green-100 text-green-700" : "bg-sky-100 text-sky-700")}>{fu.status === "VERIFIED" ? "TERVERIFIKASI" : "MENUNGGU VERIFIKASI"}</span>
+                    <span className="text-[12px] font-bold text-slate-700">{oleh?.nama ?? "User"}</span>
+                    <span className={cn("ml-auto rounded px-1.5 py-0.5 text-[10px] font-bold", fu.status === "VERIFIED" ? "bg-green-100 text-green-700" : "bg-sky-100 text-sky-700")}>{fu.status === "VERIFIED" ? "TERVERIFIKASI" : "MENUNGGU VERIFIKASI"}</span>
                   </div>
-                  <p className="mt-1 text-[11px] leading-relaxed text-slate-600">{fu.uraian}</p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-slate-600">{fu.uraian}</p>
                   {fu.fotoUrl && (
                     <img src={fu.fotoUrl} alt={`Bukti ${f.kode}`} className="mt-1.5 w-full rounded-lg border object-cover" />
                   )}
-                  <p className="mt-1 text-[9.5px] text-slate-400">{fmtTanggal(fu.tanggal)}</p>
+                  <p className="mt-1 text-[10.5px] text-slate-400">{fmtTanggal(fu.tanggal)}</p>
                 </div>
               );
             })}
@@ -250,16 +250,16 @@ export function FindingDetailScreen() {
 
         {sebagaiAuditee && (f.status === "OPEN" || f.status === "IN_PROGRESS" || f.status === "SUBMITTED") && (
           <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3">
-            <p className="flex items-center gap-1.5 text-[11px] font-bold text-sky-800"><Wrench className="h-4 w-4" /> TINDAK LANJUT AUDITEE</p>
+            <p className="flex items-center gap-1.5 text-[12px] font-bold text-sky-800"><Wrench className="h-4 w-4" /> TINDAK LANJUT AUDITEE</p>
             {f.status === "OPEN" && (
-              <Button variant="outline" onClick={tandaiProgres} className="mt-2 h-9 w-full border-sky-300 text-[11.5px] text-sky-800">
+              <Button variant="outline" onClick={tandaiProgres} className="mt-2 h-9 w-full border-sky-300 text-[12.5px] text-sky-800">
                 <Hammer className="mr-1.5 h-4 w-4" /> Tandai Sedang Dikerjakan
               </Button>
             )}
-            <p className="mt-2 text-[10px] font-bold text-slate-500">LAMPIRKAN HASIL PERBAIKAN</p>
-            <Textarea value={uraian} onChange={(e) => setUraian(e.target.value)} placeholder="Uraikan pekerjaan yang dilakukan, material, dan hasilnya..." className="mt-1 min-h-[64px] bg-white text-[11.5px]" />
+            <p className="mt-2 text-[11px] font-bold text-slate-500">LAMPIRKAN HASIL PERBAIKAN</p>
+            <Textarea value={uraian} onChange={(e) => setUraian(e.target.value)} placeholder="Uraikan pekerjaan yang dilakukan, material, dan hasilnya..." className="mt-1 min-h-[64px] bg-white text-[12.5px]" />
             <div className="mt-2 flex gap-2">
-              <Button variant="outline" onClick={() => void bukaKameraBukti()} className="h-10 flex-1 border-dashed bg-white text-[11.5px] text-forest">
+              <Button variant="outline" onClick={() => void bukaKameraBukti()} className="h-10 flex-1 border-dashed bg-white text-[12.5px] text-forest">
                 <Camera className="mr-1.5 h-4 w-4" />
                 {foto ? "Foto Terlampir (ganti)" : "Ambil Foto Bukti (Kamera Bawaan)"}
               </Button>
@@ -267,7 +267,7 @@ export function FindingDetailScreen() {
             {foto && (
               <img src={foto.dataUrl} alt="Pratinjau bukti" className="mt-2 w-full rounded-lg border object-cover" />
             )}
-            <Button onClick={kirim} disabled={mengirim} className="mt-2 h-11 w-full bg-forest text-[12px] font-bold hover:bg-forest-deep">
+            <Button onClick={kirim} disabled={mengirim} className="mt-2 h-11 w-full bg-forest text-[13px] font-bold hover:bg-forest-deep">
               {mengirim ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Flag className="mr-1.5 h-4 w-4" />}
               Kirim Bukti Perbaikan ke Server
             </Button>
@@ -277,20 +277,20 @@ export function FindingDetailScreen() {
         {sebagaiAuditor && (f.status === "SUBMITTED" || f.status === "VERIFIED") && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button className="h-11 w-full bg-green-700 text-[12px] font-bold hover:bg-green-800">
+              <Button className="h-11 w-full bg-green-700 text-[13px] font-bold hover:bg-green-800">
                 <ShieldCheck className="mr-1.5 h-4 w-4" /> Verifikasi & Tutup Temuan (Closing)
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent className="max-w-[320px] rounded-2xl">
               <AlertDialogHeader>
-                <AlertDialogTitle className="text-[14px]">Verifikasi Penutupan — {f.kode}</AlertDialogTitle>
-                <AlertDialogDescription className="text-[12px]">
+                <AlertDialogTitle className="text-[15px]">Verifikasi Penutupan — {f.kode}</AlertDialogTitle>
+                <AlertDialogDescription className="text-[13px]">
                   Pastikan perbaikan sudah diverifikasi langsung di lapangan dan berfungsi normal. Setelah ditutup, kartu Kamishibai boleh dibalik kembali ke HIJAU (Langkah 4 Guideline Auditor).
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel className="h-9 text-[12px]">Batal</AlertDialogCancel>
-                <AlertDialogAction className="h-9 bg-green-700 text-[12px]" onClick={verifikasi}>
+                <AlertDialogCancel className="h-9 text-[13px]">Batal</AlertDialogCancel>
+                <AlertDialogAction className="h-9 bg-green-700 text-[13px]" onClick={verifikasi}>
                   Ya, Tutup Temuan
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -321,27 +321,27 @@ function DaftarRiwayat() {
     <>
       <div className="shrink-0 flex gap-1.5 overflow-x-auto thin-scroll bg-white px-3 pb-2">
         {(["SEMUA", 1, 2, 3, 4] as const).map((w) => (
-          <button key={w} onClick={() => setMinggu(w)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[10.5px] font-semibold", minggu === w ? "border-forest bg-forest text-white" : "border-slate-200 bg-white text-slate-600")}>
+          <button key={w} onClick={() => setMinggu(w)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold", minggu === w ? "border-forest bg-forest text-white" : "border-slate-200 bg-white text-slate-600")}>
             {w === "SEMUA" ? "Semua Minggu" : `Minggu ${w}`}
           </button>
         ))}
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto thin-scroll p-3">
-        {list.length === 0 && <p className="mt-10 text-center text-[12px] text-slate-400">Belum ada pemeriksaan terarsip</p>}
+        {list.length === 0 && <p className="mt-10 text-center text-[13px] text-slate-400">Belum ada pemeriksaan terarsip</p>}
         {list.map((i) => {
           const auditor = master?.users.find((u) => u.id === i.auditorId);
           const tnd = findings.filter((f) => f.inspectionId === i.id);
           return (
             <button key={i.id} onClick={() => { setActiveFinding(tnd[0]?.id ?? null); setMobileScreen(tnd.length ? "finding-detail" : "findings"); }} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-forest">
               <div className="flex items-center justify-between">
-                <span className="text-[12px] font-bold text-slate-800">{i.kode}</span>
-                <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-bold", i.sync === "synced" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500")}>{i.sync === "synced" ? "TER-SYNC" : "DRAFT"}</span>
+                <span className="text-[13px] font-bold text-slate-800">{i.kode}</span>
+                <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-bold", i.sync === "synced" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500")}>{i.sync === "synced" ? "TER-SYNC" : "DRAFT"}</span>
               </div>
-              <p className="mt-0.5 text-[11px] text-slate-500">{fmtTanggal(i.tanggal)} • {namaBarak(i.barakId)} • {namaAfdeling(i.afdelingId)}</p>
-              <p className="text-[10px] text-slate-400">Auditor: {auditor?.nama ?? "-"} ({i.picLabel}){tnd.length ? ` • ${tnd.length} temuan` : ""}</p>
+              <p className="mt-0.5 text-[12px] text-slate-500">{fmtTanggal(i.tanggal)} • {namaBarak(i.barakId)} • {namaAfdeling(i.afdelingId)}</p>
+              <p className="text-[11px] text-slate-400">Auditor: {auditor?.nama ?? "-"} ({i.picLabel}){tnd.length ? ` • ${tnd.length} temuan` : ""}</p>
               <div className="mt-1.5 flex gap-1.5">
                 {(master?.kartu ?? []).map((k) => (
-                  <span key={k.id} className={cn("flex h-5 w-9 items-center justify-center rounded text-[10px] font-bold text-white", kartuStatus(i, k.id) === "H" ? "bg-green-600" : kartuStatus(i, k.id) === "M" ? "bg-red-600" : "bg-slate-300")}>
+                  <span key={k.id} className={cn("flex h-5 w-9 items-center justify-center rounded text-[11px] font-bold text-white", kartuStatus(i, k.id) === "H" ? "bg-green-600" : kartuStatus(i, k.id) === "M" ? "bg-red-600" : "bg-slate-300")}>
                     {k.id.replace("KMS-0", "K")}
                   </span>
                 ))}

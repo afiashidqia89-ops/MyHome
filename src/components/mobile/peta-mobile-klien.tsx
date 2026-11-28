@@ -42,8 +42,8 @@ function LokasiSaya() {
           pathOptions={{ color: "#ffffff", weight: 3, fillColor: "#2563EB", fillOpacity: 1 }}
         >
           <Popup>
-            <p className="text-[12px] font-bold text-slate-800">Posisi Perangkat Anda</p>
-            <p className="text-[11px] text-slate-500">GPS asli perangkat — bukan koordinat perumahan.</p>
+            <p className="text-[13px] font-bold text-slate-800">Posisi Perangkat Anda</p>
+            <p className="text-[12px] text-slate-500">GPS asli perangkat — bukan koordinat perumahan.</p>
           </Popup>
         </CircleMarker>
       )}
@@ -113,24 +113,24 @@ export function PetaMobileKlien() {
           <Marker key={b.id} position={[b.koordinat.lat, b.koordinat.lng]} icon={ikon}>
             <Popup>
               <div className="min-w-[210px]">
-                <p className="text-[13px] font-bold text-slate-800">{b.nama}</p>
-                <p className="text-[11px] text-slate-500">{namaAfdeling(b.afdelingId)} • {b.tipe}</p>
-                <p className="text-[11px] text-slate-500">Kapasitas {b.kapasitas} orang</p>
+                <p className="text-[14px] font-bold text-slate-800">{b.nama}</p>
+                <p className="text-[12px] text-slate-500">{namaAfdeling(b.afdelingId)} • {b.tipe}</p>
+                <p className="text-[12px] text-slate-500">Kapasitas {b.kapasitas} orang</p>
                 {last ? (
-                  <p className="mt-1 text-[11px] text-slate-700">
+                  <p className="mt-1 text-[12px] text-slate-700">
                     Audit terakhir <b>{last.kode}</b> ({fmtTanggal(last.tanggal)}) —{" "}
                     <b style={{ color: status === "M" ? "#D93025" : "#1F7A41" }}>{status === "M" ? "MERAH" : "HIJAU"}</b>
                     {tndAktif > 0 ? ` • ${tndAktif} temuan aktif` : ""}
                   </p>
                 ) : (
-                  <p className="mt-1 text-[11px] italic text-slate-500">Belum pernah diaudit</p>
+                  <p className="mt-1 text-[12px] italic text-slate-500">Belum pernah diaudit</p>
                 )}
                 {auditor ? (
-                  <Button onClick={() => mulai(b.afdelingId, b.id)} className="mt-2 h-8 w-full bg-forest text-[11px] hover:bg-forest-deep">
+                  <Button onClick={() => mulai(b.afdelingId, b.id)} className="mt-2 h-8 w-full bg-forest text-[12px] hover:bg-forest-deep">
                     Mulai Pemeriksaan Perumahan Ini
                   </Button>
                 ) : (
-                  <p className="mt-2 rounded bg-slate-100 px-2 py-1 text-[10px] text-slate-500">Hanya AUDITOR yang memulai pemeriksaan</p>
+                  <p className="mt-2 rounded bg-slate-100 px-2 py-1 text-[11px] text-slate-500">Hanya AUDITOR yang memulai pemeriksaan</p>
                 )}
               </div>
             </Popup>

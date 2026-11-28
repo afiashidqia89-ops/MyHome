@@ -32,7 +32,7 @@ export function GuidelineScreen() {
       />
       <div className={cn("shrink-0 grid gap-1 border-b bg-white p-2", auditor ? "grid-cols-3" : "grid-cols-2")}>
         {tabs.map((t) => (
-          <button key={t.id} onClick={() => setGuidelineTab(t.id)} className={cn("rounded-lg py-2 text-[10.5px] font-bold", tab === t.id ? "bg-forest text-white" : "bg-slate-100 text-slate-600")}>
+          <button key={t.id} onClick={() => setGuidelineTab(t.id)} className={cn("rounded-lg py-2 text-[11.5px] font-bold", tab === t.id ? "bg-forest text-white" : "bg-slate-100 text-slate-600")}>
             {t.label}
           </button>
         ))}
@@ -40,34 +40,34 @@ export function GuidelineScreen() {
       <div className="flex-1 overflow-y-auto thin-scroll p-3">
         {tab === "jalur" && (
           <div className="space-y-3">
-            <p className="text-[11px] leading-relaxed text-slate-500">Klasifikasi jalur eksekusi temuan emplasemen perumahan menentukan siapa yang mengerjakan, dari mana dana, dan berapa lama target penyelesaiannya.</p>
+            <p className="text-[12px] leading-relaxed text-slate-500">Klasifikasi jalur eksekusi temuan emplasemen perumahan menentukan siapa yang mengerjakan, dari mana dana, dan berapa lama target penyelesaiannya.</p>
             <div className="rounded-xl border bg-white p-3">
-              <p className="text-[12px] font-bold text-forest">JALUR A — Swakelola / Internal Tim Kebun</p>
+              <p className="text-[13px] font-bold text-forest">JALUR A — Swakelola / Internal Tim Kebun</p>
               <div className="mt-2 space-y-2">
                 {JALUR_KRITERIA.map((k) => (
                   <div key={k.aspek} className="rounded-lg bg-forest-soft p-2">
-                    <p className="text-[10px] font-bold text-forest">{k.aspek}</p>
-                    <p className="mt-0.5 text-[10.5px] leading-relaxed text-slate-600">{k.jalurA}</p>
+                    <p className="text-[11px] font-bold text-forest">{k.aspek}</p>
+                    <p className="mt-0.5 text-[11.5px] leading-relaxed text-slate-600">{k.jalurA}</p>
                   </div>
                 ))}
               </div>
-              <p className="mt-2 text-[10px] font-bold text-slate-500">CONTOH TEMUAN:</p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10.5px] text-slate-600">
+              <p className="mt-2 text-[11px] font-bold text-slate-500">CONTOH TEMUAN:</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11.5px] text-slate-600">
                 {JALUR_CONTOH.jalurA.map((c) => <li key={c}>{c}</li>)}
               </ul>
             </div>
             <div className="rounded-xl border bg-white p-3">
-              <p className="text-[12px] font-bold text-orange-700">JALUR B — Support GS Project (POU) / Corporate</p>
+              <p className="text-[13px] font-bold text-orange-700">JALUR B — Support GS Project (POU) / Corporate</p>
               <div className="mt-2 space-y-2">
                 {JALUR_KRITERIA.map((k) => (
                   <div key={k.aspek} className="rounded-lg bg-orange-50 p-2">
-                    <p className="text-[10px] font-bold text-orange-700">{k.aspek}</p>
-                    <p className="mt-0.5 text-[10.5px] leading-relaxed text-slate-600">{k.jalurB}</p>
+                    <p className="text-[11px] font-bold text-orange-700">{k.aspek}</p>
+                    <p className="mt-0.5 text-[11.5px] leading-relaxed text-slate-600">{k.jalurB}</p>
                   </div>
                 ))}
               </div>
-              <p className="mt-2 text-[10px] font-bold text-slate-500">CONTOH TEMUAN:</p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10.5px] text-slate-600">
+              <p className="mt-2 text-[11px] font-bold text-slate-500">CONTOH TEMUAN:</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11.5px] text-slate-600">
                 {JALUR_CONTOH.jalurB.map((c) => <li key={c}>{c}</li>)}
               </ul>
             </div>
@@ -76,15 +76,15 @@ export function GuidelineScreen() {
 
         {tab === "level" && (
           <div className="space-y-2">
-            <p className="text-[11px] leading-relaxed text-slate-500">{auditor ? "Jenjang persetujuan & target SLA penyelesaian untuk setiap temuan yang dicatat auditor." : "Level temuan menentukan siapa yang menyetujui dan berapa lama target perbaikan Anda (SLA)."}</p>
+            <p className="text-[12px] leading-relaxed text-slate-500">{auditor ? "Jenjang persetujuan & target SLA penyelesaian untuk setiap temuan yang dicatat auditor." : "Level temuan menentukan siapa yang menyetujui dan berapa lama target perbaikan Anda (SLA)."}</p>
             {(master?.matriks ?? []).map((a) => (
               <div key={a.level} className="rounded-xl border bg-white p-3">
                 <div className="flex items-center gap-2">
-                  <span className={cn("flex h-7 w-7 items-center justify-center rounded-lg text-[12px] font-bold text-white", a.level === 1 ? "bg-lime-600" : a.level === 2 ? "bg-amber-500" : a.level === 3 ? "bg-orange-600" : "bg-red-700")}>{a.level}</span>
-                  <p className="text-[12px] font-bold text-slate-800">{a.jalur}</p>
+                  <span className={cn("flex h-7 w-7 items-center justify-center rounded-lg text-[13px] font-bold text-white", a.level === 1 ? "bg-lime-600" : a.level === 2 ? "bg-amber-500" : a.level === 3 ? "bg-orange-600" : "bg-red-700")}>{a.level}</span>
+                  <p className="text-[13px] font-bold text-slate-800">{a.jalur}</p>
                 </div>
-                <p className="mt-1.5 text-[10.5px] leading-relaxed text-slate-600">{a.kategori}</p>
-                <div className="mt-2 space-y-1 border-t pt-2 text-[10px] text-slate-500">
+                <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-600">{a.kategori}</p>
+                <div className="mt-2 space-y-1 border-t pt-2 text-[11px] text-slate-500">
                   <p><b className="text-slate-700">Pengaju:</b> {a.pengaju}</p>
                   <p><b className="text-slate-700">Verifikator teknis:</b> {a.verifikator}</p>
                   <p><b className="text-slate-700">Final approval:</b> <span className="font-bold text-gold-deep">{a.final}</span></p>
@@ -97,19 +97,19 @@ export function GuidelineScreen() {
 
         {tab === "langkah" && (
           <div className="space-y-2">
-            <p className="text-[11px] leading-relaxed text-slate-500">Prosedur wajib auditor saat menemukan status MERAH di lapangan.</p>
+            <p className="text-[12px] leading-relaxed text-slate-500">Prosedur wajib auditor saat menemukan status MERAH di lapangan.</p>
             {LANGKAH_AUDITOR.map((l, i) => (
               <div key={l.judul} className="rounded-xl border bg-white p-3">
-                <p className="flex items-center gap-2 text-[12px] font-bold text-forest">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-forest text-[11px] font-bold text-white">{i + 1}</span>
+                <p className="flex items-center gap-2 text-[13px] font-bold text-forest">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-forest text-[12px] font-bold text-white">{i + 1}</span>
                   {l.judul.replace(/^Langkah \d+ — /, "")}
                 </p>
-                <p className="mt-1.5 text-[10.5px] leading-relaxed text-slate-600">{l.isi}</p>
+                <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-600">{l.isi}</p>
               </div>
             ))}
             <div className="rounded-xl border border-green-200 bg-green-50 p-3">
-              <p className="flex items-center gap-1.5 text-[11px] font-bold text-green-800"><CheckCircle2 className="h-4 w-4" /> Papan Saat Ini</p>
-              <p className="mt-1 text-[10.5px] leading-relaxed text-green-900">
+              <p className="flex items-center gap-1.5 text-[12px] font-bold text-green-800"><CheckCircle2 className="h-4 w-4" /> Papan Saat Ini</p>
+              <p className="mt-1 text-[11.5px] leading-relaxed text-green-900">
                 {rows.filter((r) => r.status["KMS-01"] === "M" || r.status["KMS-02"] === "M" || r.status["KMS-03"] === "M" || r.status["KMS-04"] === "M").length} dari {rows.length} baris papan periode {master?.periodeAktif ?? ""} masih memiliki kartu MERAH yang menunggu verifikasi penutupan.
               </p>
             </div>
