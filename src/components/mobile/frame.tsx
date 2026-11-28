@@ -1,7 +1,7 @@
 "use client";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { ClipboardCheck, Flag, Home, MapPinned, User, Wrench } from "lucide-react";
+import { ClipboardCheck, Database, Flag, Home, MapPinned, Wrench } from "lucide-react";
 import type { MobileScreen, Role } from "@/lib/types";
 
 export function PhoneFrame({ children }: { children: React.ReactNode }) {
@@ -12,7 +12,7 @@ export function PhoneFrame({ children }: { children: React.ReactNode }) {
         <div className="absolute left-1/2 top-0 z-20 h-6 w-44 -translate-x-1/2 rounded-b-2xl bg-slate-900" />
         <div className="relative h-[820px] max-h-[80vh] overflow-hidden rounded-[2.4rem] bg-slate-100">
           {/* Status bar */}
-          <div className="relative z-10 flex items-center justify-between bg-forest-deep px-6 pb-1 pt-2 text-[11px] font-medium text-white/90">
+          <div className="relative z-10 flex items-center justify-between bg-forest-deep px-6 pb-1 pt-2 text-[12px] font-medium text-white/90">
             <span>09:41</span>
             <span className="flex items-center gap-1">
               <span className="inline-block h-2 w-2 rounded-full bg-gold" />
@@ -41,7 +41,7 @@ const NAV_AUDITOR: { id: MobileScreen; label: string; icon: React.ReactNode }[] 
   { id: "inspect-new", label: "Periksa", icon: <ClipboardCheck className="h-4 w-4" /> },
   { id: "peta", label: "Peta Rumah", icon: <MapPinned className="h-4 w-4" /> },
   { id: "findings", label: "Temuan", icon: <Flag className="h-4 w-4" /> },
-  { id: "profile", label: "Profil", icon: <User className="h-4 w-4" /> },
+  { id: "profile", label: "Data", icon: <Database className="h-4 w-4" /> },
 ];
 
 // AUDITEE: fokus tindak lanjut temuan — tanpa Peta (alat inspeksi) & Data (ekspor)
@@ -49,14 +49,14 @@ const NAV_AUDITEE: { id: MobileScreen; label: string; icon: React.ReactNode }[] 
   { id: "beranda", label: "Beranda", icon: <Home className="h-4 w-4" /> },
   { id: "findings", label: "Temuan", icon: <Flag className="h-4 w-4" /> },
   { id: "guideline", label: "Panduan", icon: <Wrench className="h-4 w-4" /> },
-  { id: "profile", label: "Profil", icon: <User className="h-4 w-4" /> },
+  { id: "profile", label: "Data", icon: <Database className="h-4 w-4" /> },
 ];
 
 // ADMIN: pemantauan corporate — 3 tab saja (admin memakai portal web)
 const NAV_ADMIN: { id: MobileScreen; label: string; icon: React.ReactNode }[] = [
   { id: "beranda", label: "Beranda", icon: <Home className="h-4 w-4" /> },
   { id: "findings", label: "Temuan", icon: <Flag className="h-4 w-4" /> },
-  { id: "profile", label: "Profil", icon: <User className="h-4 w-4" /> },
+  { id: "profile", label: "Data", icon: <Database className="h-4 w-4" /> },
 ];
 
 export function navPerPeran(role: Role | undefined) {
@@ -100,7 +100,7 @@ export function BottomNav() {
                 onClick={() => klik(n.id)}
                 aria-label={n.label}
                 className={cn(
-                  "flex w-full flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10px] font-medium",
+                  "flex w-full flex-col items-center gap-0.5 rounded-lg py-1.5 text-[11px] font-medium",
                   aktif ? "text-forest" : "text-slate-400 hover:text-slate-600",
                 )}
               >
@@ -127,8 +127,8 @@ export function ScreenHeader({ title, sub, onBack, right }: { title: string; sub
           </button>
         ) : null}
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-[15px] font-bold leading-tight">{title}</h1>
-          {sub ? <p className="truncate text-[11px] text-white/70">{sub}</p> : null}
+          <h1 className="truncate text-[16px] font-bold leading-tight">{title}</h1>
+          {sub ? <p className="truncate text-[12px] text-white/70">{sub}</p> : null}
         </div>
         {right}
       </div>
