@@ -15,7 +15,7 @@
 //      ditarik untuk menggantikan snapshot.
 // ============================================================
 
-import { apiUrl, getToken } from "./server";
+import { apiUrl, getToken, serverTerpasang } from "./server";
 
 // ---------------- ANTREAN KIRIM (OUTBOX) ----------------
 
@@ -49,18 +49,26 @@ export function bacaAntrean(): OpAntrean[] {
   }
 }
 
-export function simpanAntrean(list: OpAntrean[]) {
+export function simpanAntrean(list: OpAntrean[]): boolean {
   try {
     window.localStorage.setItem(KEY_OUTBOX, JSON.stringify(list));
+    return true;
   } catch {
-    /* kuota penuh — antrean lama dipertahankan */
+    return false; // kuota penuh — pemanggil WAJIB tahu agar tidak mengaku "tersimpan"
   }
 }
 
-export function tambahAntrean(op: Omit<OpAntrean, "id" | "dibuat">) {
+/** Tambah ke antrean. Return false bila penyimpanan perangkat penuh (data TIDAK tersimpan). */
+export function tambahAntrean(op: Omit<OpAntrean, "id" | "dibuat">): boolean {
   const list = bacaAntrean();
   list.push({ ...op, id: idBaru(), dibuat: new Date().toISOString() });
-  simpanAntrean(list);
+  if (simpanAntrean(list)) return true;
+  // Kuota penuh: buang cache baca (snapshot) yang bisa ditarik ulang dari server, coba lagi
+  for (const nama of ["inspeksi", "temuan", "aktivitas", "users"] as const) {
+    hapusSnapshot(nama);
+    if (simpanAntrean(list)) return true;
+  }
+  return false;
 }
 
 export function hitungAntrean(): number {
@@ -228,12 +236,112 @@ interface KlienQuery {
   invalidateQueries: (o: { queryKey: readonly unknown[] }) => Promise<void>;
 }
 
+// Batas isi satu permintaan. Hosting (Vercel) menolak > ~4,5 MB dengan 413 —
+// pemeriksaan lebih besar dari ini dikirim 2 tahap: data dulu, foto satu per satu.
+const BATAS_BODY = 3_000_000;
+const WAKTU_KIRIM_MS = 90_000;
+
+type HasilKirim = "ok" | "tolak" | "tunda" | "putus" | "auth";
+
+async function kirimJson(path: string, metode: string, body: unknown, token: string): Promise<Response> {
+  const kontrol = new AbortController();
+  const timer = setTimeout(() => kontrol.abort(), WAKTU_KIRIM_MS);
+  try {
+    return await fetch(apiUrl(path), {
+      method: metode,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
+      signal: kontrol.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function sebabServer(res: Response): Promise<string> {
+  const teks = await res.text().catch(() => "");
+  try {
+    const j = JSON.parse(teks) as { error?: string };
+    if (j.error) return j.error;
+  } catch {
+    /* bukan JSON */
+  }
+  if (res.status === 413) return "isi terlalu besar untuk server";
+  return `kode ${res.status}`;
+}
+
+interface FotoAntre { id?: string; dataUrl?: string; lat?: number; lng?: number; label?: string }
+interface HasilAntre { itemId: string; fotos?: FotoAntre[]; [k: string]: unknown }
+
+/** Kirim 1 operasi antrean. Mengisi `catatan` dengan sebab bila gagal. */
+async function kirimOp(op: OpAntrean, token: string, catatan: string[]): Promise<HasilKirim> {
+  const sebabJaringan = () => catatan.push(`${op.label}: tidak dapat menghubungi server — periksa internet / alamat server (Set IP). Data tetap aman di perangkat.`);
+  const tanganiGagal = async (res: Response): Promise<HasilKirim> => {
+    if (res.status === 401) {
+      catatan.push("Sesi berakhir — login ulang (saat ada sinyal) untuk melanjutkan pengiriman.");
+      return "auth";
+    }
+    const sebab = await sebabServer(res);
+    // 5xx / 408 (timeout) / 413 (terlalu besar) / 429 (terlalu sering) = SEMENTARA → data JANGAN dibuang
+    if (res.status >= 500 || res.status === 408 || res.status === 413 || res.status === 429) {
+      catatan.push(`${op.label}: server menolak sementara (${sebab}) — data tetap AMAN di perangkat, coba sinkron lagi.`);
+      return "tunda";
+    }
+    // 4xx lain = penolakan PERMANEN (validasi/binding) — tidak diulang agar antrean tidak macet
+    catatan.push(`${op.label}: ditolak server (${sebab}).`);
+    return "tolak";
+  };
+
+  const body = op.body as { results?: HasilAntre[] } | undefined;
+  const inspeksiPost = op.metode === "POST" && /^\/api\/inspeksi\/?$/.test(op.path);
+  const besar = inspeksiPost && JSON.stringify(op.body ?? {}).length > BATAS_BODY;
+
+  try {
+    if (!besar) {
+      const res = await kirimJson(op.path, op.metode, op.body, token);
+      return res.ok ? "ok" : await tanganiGagal(res);
+    }
+
+    // ---- 2 TAHAP: (1) data tanpa foto, (2) foto satu per satu ----
+    const ringan = {
+      ...(op.body as Record<string, unknown>),
+      results: (body?.results ?? []).map((r) => ({ ...r, fotos: [] })),
+    };
+    const res1 = await kirimJson(op.path, op.metode, ringan, token);
+    if (!res1.ok) return await tanganiGagal(res1);
+    const j = (await res1.json().catch(() => ({}))) as { inspeksi?: { id?: string } };
+    const idServer = j.inspeksi?.id ?? (op.body as { id?: string }).id;
+    if (!idServer) {
+      catatan.push(`${op.label}: balasan server tidak lengkap — data tetap AMAN di perangkat.`);
+      return "tunda";
+    }
+    for (const r of body?.results ?? []) {
+      for (const f of r.fotos ?? []) {
+        const resF = await kirimJson(`/api/inspeksi/${idServer}/foto`, "POST", { itemId: r.itemId, fotos: [f] }, token);
+        if (!resF.ok) return await tanganiGagal(resF); // ulang dari awal nanti — server melewati foto yang sudah ada
+      }
+    }
+    return "ok";
+  } catch {
+    sebabJaringan();
+    return "putus";
+  }
+}
+
 /** Kirim seluruh antrean ke server, berurutan. Aman dipanggil berkali-kali. */
 export async function sinkronAntrean(): Promise<HasilSinkron> {
   const hasil: HasilSinkron = { waktu: new Date().toISOString(), kirim: 0, gagal: 0, sisa: 0, catatan: [] };
   const token = getToken();
   if (!token) {
-    hasil.catatan.push("Belum login — data antrean dikirim setelah login.");
+    hasil.catatan.push("Belum login online — login ulang saat ada sinyal agar data antrean bisa dikirim.");
+    hasil.sisa = hitungAntrean();
+    catatSinkron(hasil);
+    return hasil;
+  }
+  if (!serverTerpasang()) {
+    hasil.catatan.push("Alamat server belum diatur — isi kolom SET IP di Pengaturan (ikon gerigi) layar login.");
+    hasil.sisa = hitungAntrean();
     catatSinkron(hasil);
     return hasil;
   }
@@ -241,50 +349,23 @@ export async function sinkronAntrean(): Promise<HasilSinkron> {
   const awalIds = new Set(antreanAwal.map((o) => o.id));
   const masih: OpAntrean[] = [];
 
-  for (const op of antreanAwal) {
-    let res: Response;
-    try {
-      res = await fetch(apiUrl(op.path), {
-        method: op.metode,
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: op.body === undefined ? undefined : JSON.stringify(op.body),
-        cache: "no-store",
-      });
-    } catch {
-      masih.push(op); // jaringan putus — sisanya menunggu
-      break;
-    }
-    if (res.ok) {
-      hasil.kirim++;
-      continue;
-    }
-    if (res.status === 401) {
-      masih.push(op);
-      hasil.catatan.push("Sesi berakhir — login ulang untuk melanjutkan pengiriman.");
-      break;
-    }
-    if (res.status >= 500) {
-      // 5xx = KESALAHAN SERVER (sementara) — JANGAN buang data:
-      // tetap di antrean dan dicoba lagi saat Sinkron berikutnya.
-      masih.push(op);
-      hasil.catatan.push(`${op.label}: server sedang bermasalah (${res.status}) — data tetap AMAN di perangkat, coba sinkron lagi nanti.`);
-      break; // server bermasalah — op berikutnya kemungkinan juga gagal, hentikan loop
-    }
-    // 4xx lain: server menolak PERMANEN (validasi/konflik) — tidak diulang
-    // agar antrean tidak macet; datanya masih ada di balasan server bila
-    // bentrok (idempotent POST inspeksi menahan duplikasi).
-    hasil.gagal++;
-    const pesan = await res.json().catch(() => ({}) as { error?: string });
-    hasil.catatan.push(`${op.label}: ${pesan.error ?? `ditolak server (${res.status})`}`);
+  for (let i = 0; i < antreanAwal.length; i++) {
+    const op = antreanAwal[i];
+    const r = await kirimOp(op, token, hasil.catatan);
+    if (r === "ok") { hasil.kirim++; continue; }
+    if (r === "tolak") { hasil.gagal++; continue; }
+    if (r === "tunda") { masih.push(op); continue; } // server bermasalah untuk op ini — coba op lain
+    // putus / auth: sisanya pasti gagal juga. Simpan SEMUA yang belum terkirim
+    // (dulu hanya op yang gagal — sisanya ikut terhapus dari antrean!).
+    masih.push(...antreanAwal.slice(i));
+    break;
   }
 
-  // Pertahankan: op yang masih mengantre (jaringan putus) + op BARU yang muncul selama proses
+  // Pertahankan: op yang masih mengantre + op BARU yang muncul selama proses
   const antreanKini = bacaAntrean();
   const masihIds = new Set(masih.map((o) => o.id));
   simpanAntrean(antreanKini.filter((op) => masihIds.has(op.id) || !awalIds.has(op.id)));
   hasil.sisa = hitungAntrean();
-  // Penyegaran data dilakukan pemanggil (autoSinkron) lewat invalidateQueries
-  // → React Query menarik data terbaru dari server.
   catatSinkron(hasil);
   return hasil;
 }
