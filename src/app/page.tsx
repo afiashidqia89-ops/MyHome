@@ -224,6 +224,9 @@ function AppRoot() {
     WAKTU_AUTO_SINKRON = sekarang;
     if (!hitungAntrean()) return;
     void autoSinkron(queryClient).then((hasil) => {
+      if (hasil && hasil.kirim === 0 && hasil.catatan.length > 0) {
+        toast.warning(hasil.catatan[0], { duration: 8000 });
+      }
       if (hasil && hasil.kirim > 0) {
         toast.success(`${hasil.kirim} data offline berhasil dikirim ke server`);
         void queryClient.invalidateQueries({ queryKey: qk.inspeksi });
@@ -231,6 +234,23 @@ function AppRoot() {
         void queryClient.invalidateQueries({ queryKey: qk.aktivitas });
       }
     }).catch(() => { /* senyap — antrean tetap aman di perangkat */ });
+  }, [sess?.authenticated]);
+
+  // Koneksi internet kembali → kirim antrean otomatis (tanpa menunggu buka ulang aplikasi)
+  useEffect(() => {
+    if (!sess?.authenticated) return;
+    const saatOnline = () => {
+      if (!hitungAntrean()) return;
+      void autoSinkron(queryClient).then((hasil) => {
+        if (hasil && hasil.kirim > 0) {
+          toast.success(`${hasil.kirim} data offline berhasil dikirim ke server`);
+          void queryClient.invalidateQueries({ queryKey: qk.inspeksi });
+          void queryClient.invalidateQueries({ queryKey: qk.temuan });
+        }
+      }).catch(() => { /* senyap */ });
+    };
+    window.addEventListener("online", saatOnline);
+    return () => window.removeEventListener("online", saatOnline);
   }, [sess?.authenticated]);
 
   // Deteksi lingkungan (dihitung ulang saat orientasi/ukuran jendela berubah):
