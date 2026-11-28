@@ -2,8 +2,10 @@ import { db } from "@/lib/db";
 import { badRequest, forbidden, getSessionUser, unauthorized } from "@/lib/auth";
 import { muatScope } from "@/lib/scope";
 import type { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
+export const maxDuration = 60; // simpan 27 item + foto butuh lebih dari batas bawaan
 
 const BULAN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
@@ -113,11 +115,14 @@ export async function POST(req: Request) {
   const periode = `${BULAN[now.getMonth()]} ${now.getFullYear()}`;
   const minggu = Math.ceil(now.getDate() / 7);
 
-  // Nomor urut pemeriksaan minggu ini (dipakai untuk kode PRM-W#-##)
-  const seq = (await db.inspeksi.count({ where: { periode, minggu } })) + 1;
+  // Nomor urut pemeriksaan minggu ini (dipakai untuk kode PRM-W#-##).
+  // Dicari sampai ketemu kode yang BELUM dipakai — dulu cukup count()+1 sehingga
+  // bentrok kode (unique) membuat simpan/sinkron gagal 500 terus-menerus.
+  let seq = (await db.inspeksi.count({ where: { periode, minggu } })) + 1;
   let kode = `PRM-W${minggu}-${String(seq).padStart(2, "0")}`;
-  if (await db.inspeksi.findUnique({ where: { kode } })) {
-    kode = `PRM-W${minggu}-${String(seq).padStart(2, "0")}-${now.getSeconds()}`;
+  for (let i = 0; i < 200 && (await db.inspeksi.findUnique({ where: { kode } })); i++) {
+    seq++;
+    kode = `PRM-W${minggu}-${String(seq).padStart(2, "0")}`;
   }
 
   const temuanList = Array.isArray(body.temuan) ? body.temuan : [];
@@ -135,60 +140,95 @@ export async function POST(req: Request) {
     ?? (await db.user.findFirst({ where: { role: "AUDITEE", status: "ACTIVE", kebunId: barak.afdeling.kebunId, jabatan: { contains: "KTU" } } }))
     ?? (await db.user.findFirst({ where: { role: "AUDITEE", status: "ACTIVE", kebunId: barak.afdeling.kebunId } }));
 
-  const countTemuan = await db.temuan.count();
+  // Nomor temuan berikutnya = angka TERBESAR yang ada + 1 (bukan count()): setelah
+  // ada temuan yang dihapus, count()+1 menabrak kode lama (unique) → 500.
+  const kodeAda = await db.temuan.findMany({ select: { kode: true }, where: { kode: { startsWith: "TND-" } } });
+  let nomorTemuan = kodeAda.reduce((m, t) => {
+    const n = parseInt(t.kode.slice(4), 10);
+    return Number.isFinite(n) && n > m ? n : m;
+  }, 0);
+  const itemSah = new Set((await db.checklistItem.findMany({ select: { id: true } })).map((x) => x.id));
 
-  const created = await db.$transaction(async (tx) => {
-    const insp = await tx.inspeksi.create({
-      data: {
-        ...(body.id && body.id.length <= 36 ? { id: body.id } : {}), // ID client (offline) bila ada
-        kode, tanggal: now, minggu, periode,
-        barakId, auditorId: me.id, picLabel,
-        kesimpulan: body.kesimpulan?.trim() || null,
-        status: "TERKIRIM",
-        // Koordinat hasil TAGGING auditor di lokasi (1x per pemeriksaan),
-        // bukan koordinat foto — fallback ke titik perumahan bila ada (bisa kosong/NULL).
-        lat: Number.isFinite(body.lat) ? (body.lat as number) : barak.lat,
-        lng: Number.isFinite(body.lng) ? (body.lng as number) : barak.lng,
-      },
-    });
-    for (const r of results) {
-      const item = await tx.checklistItem.findUnique({ where: { id: r.itemId } });
-      if (!item) continue;
-      const h = await tx.hasilItem.create({
-        data: { inspeksiId: insp.id, itemId: r.itemId, status: r.status, catatan: r.catatan?.trim() || null },
+  let created: Row;
+  try {
+    created = await db.$transaction(async (tx) => {
+      const insp = await tx.inspeksi.create({
+        data: {
+          ...(body.id && body.id.length <= 36 ? { id: body.id } : {}), // ID client (offline) bila ada
+          kode, tanggal: now, minggu, periode,
+          barakId, auditorId: me.id, picLabel,
+          kesimpulan: body.kesimpulan?.trim() || null,
+          status: "TERKIRIM",
+          // Koordinat hasil TAGGING auditor di lokasi (1x per pemeriksaan),
+          // bukan koordinat foto — fallback ke titik perumahan bila ada (bisa kosong/NULL).
+          lat: Number.isFinite(body.lat) ? (body.lat as number) : barak.lat,
+          lng: Number.isFinite(body.lng) ? (body.lng as number) : barak.lng,
+        },
       });
-      for (const f of r.fotos ?? []) {
-        if (!f.dataUrl || f.dataUrl.length > 3_000_000) continue;
-        await tx.foto.create({
-          data: { hasilId: h.id, dataUrl: f.dataUrl, lat: f.lat ?? barak.lat ?? 0, lng: f.lng ?? barak.lng ?? 0, label: (f.label ?? "Foto audit").slice(0, 120) },
+
+      // Penulisan MASSAL (createMany) — dulu 27x findUnique + create satu per satu
+      // di dalam transaksi sehingga melewati batas 5 detik Prisma (P2028) → 500.
+      const hasilRows: { id: string; inspeksiId: string; itemId: string; status: string | null; catatan: string | null }[] = [];
+      const fotoRows: { id: string; hasilId: string; dataUrl: string; lat: number; lng: number; label: string }[] = [];
+      const itemDipakai = new Set<string>();
+      for (const r of results) {
+        if (!r.itemId || !itemSah.has(r.itemId) || itemDipakai.has(r.itemId)) continue;
+        itemDipakai.add(r.itemId);
+        const hid = randomUUID();
+        hasilRows.push({
+          id: hid, inspeksiId: insp.id, itemId: r.itemId,
+          status: r.status === "H" || r.status === "M" ? r.status : null,
+          catatan: r.catatan?.trim() || null,
+        });
+        (r.fotos ?? []).forEach((f, idx) => {
+          if (!f.dataUrl || f.dataUrl.length > 3_000_000) return;
+          const cid = (f as { id?: string }).id;
+          fotoRows.push({
+            // ID foto deterministik → unggah ulang foto (sinkron terputus) tidak menggandakan
+            id: cid ? `${insp.id}:${r.itemId}:${cid}`.slice(0, 190) : randomUUID(),
+            hasilId: hid, dataUrl: f.dataUrl,
+            lat: Number.isFinite(f.lat) ? f.lat : barak.lat ?? 0,
+            lng: Number.isFinite(f.lng) ? f.lng : barak.lng ?? 0,
+            label: (f.label ?? `Foto audit ${idx + 1}`).slice(0, 120),
+          });
         });
       }
-    }
-    for (const t of temuanList) {
-      if (!t.itemId || !t.uraian?.trim()) continue;
-      const level = [1, 2, 3, 4].includes(t.level) ? t.level : 1;
-      const target = new Date(now);
-      target.setDate(target.getDate() + (level <= 2 ? 7 : 14));
-      await tx.temuan.create({
-        data: {
-          kode: `TND-${String(countTemuan + 1 + temuanList.indexOf(t)).padStart(3, "0")}`,
+      if (hasilRows.length) await tx.hasilItem.createMany({ data: hasilRows });
+      if (fotoRows.length) await tx.foto.createMany({ data: fotoRows });
+
+      const temuanRows: Prisma.TemuanCreateManyInput[] = [];
+      for (const t of temuanList) {
+        if (!t.itemId || !t.uraian?.trim()) continue;
+        const level = [1, 2, 3, 4].includes(t.level) ? t.level : 1;
+        const target = new Date(now);
+        target.setDate(target.getDate() + (level <= 2 ? 7 : 14));
+        nomorTemuan++;
+        temuanRows.push({
+          kode: `TND-${String(nomorTemuan).padStart(3, "0")}`,
           inspeksiId: insp.id, barakId, afdelingId: barak.afdelingId, itemId: t.itemId,
           uraian: t.uraian.trim().slice(0, 2000), level,
           mitigasiDarurat: level >= 3 ? t.mitigasiDarurat?.trim() || null : null,
           noWO: t.noWO?.trim() || null,
           targetSelesai: target, status: "OPEN",
           auditeeId: auditee?.id ?? null,
+        });
+      }
+      if (temuanRows.length) await tx.temuan.createMany({ data: temuanRows });
+
+      await tx.aksiLog.create({
+        data: {
+          userId: me.id, aktor: me.nama,
+          aksi: `Pemeriksaan ${kode} di ${barak.nama} (Minggu ${minggu}) — ${jumlahMerah} item MERAH${temuanList.length ? `, ${temuanList.length} temuan dicatat` : ""}`,
         },
       });
-    }
-    await tx.aksiLog.create({
-      data: {
-        userId: me.id, aktor: me.nama,
-        aksi: `Pemeriksaan ${kode} di ${barak.nama} (Minggu ${minggu}) — ${jumlahMerah} item MERAH${temuanList.length ? `, ${temuanList.length} temuan dicatat` : ""}`,
-      },
-    });
-    return tx.inspeksi.findUniqueOrThrow({ where: { id: insp.id }, include: includeBarak });
-  });
+      return tx.inspeksi.findUniqueOrThrow({ where: { id: insp.id }, include: includeBarak });
+    }, { maxWait: 15_000, timeout: 55_000 });
+  } catch (e) {
+    // Balas JSON berisi sebab asli agar terbaca di laporan sinkron aplikasi
+    // (sebelumnya 500 kosong tanpa petunjuk).
+    console.error("POST /api/inspeksi gagal:", e);
+    return Response.json({ error: `Server gagal menyimpan pemeriksaan: ${(e as Error).message?.slice(0, 200) ?? "kesalahan tak dikenal"}` }, { status: 500 });
+  }
 
   return Response.json({ inspeksi: serialize(created), temuanDibuat: temuanList.length }, { status: 201 });
 }
