@@ -202,6 +202,12 @@ export function InspectScreen() {
   const dinilai = results.filter((r) => r.status !== null).length;
   const hijau = results.filter((r) => r.status === "H").length;
   const merah = results.filter((r) => r.status === "M").length;
+  // ---- SYARAT SIMPAN ----
+  // 1) koordinat wajib ditag  2) setiap item MERAH wajib punya foto
+  // 3) item yang belum diperiksa BOLEH kosong (minimal 1 item dinilai)
+  const gpsOk = !!draft.gps && Number.isFinite(draft.gps.lat) && Number.isFinite(draft.gps.lng);
+  const merahTanpaFoto = results.filter((r) => r.status === "M" && r.fotos.length === 0);
+  const bisaSimpan = gpsOk && merahTanpaFoto.length === 0 && dinilai > 0;
 
   // Item berikutnya: setelah item terakhir dinilai → lanjut ke item DI BAWAHNYA
   // (bukan kembali ke paling atas); sisa di atas baru diambil setelah bawah habis.
@@ -255,12 +261,22 @@ export function InspectScreen() {
   };
 
   const simpan = async () => {
-    if (dinilai === 0) {
-      toast.error("Belum ada item yang dinilai");
+    // 1) KOORDINAT wajib — tanpa tag koordinat transaksi tidak boleh tersimpan
+    if (!gpsOk) {
+      toast.error("Koordinat belum ditag — tekan \"Tag Koordinat Sekarang\" di bagian atas, lalu simpan lagi.");
       return;
     }
-    if (!draft.gps) {
-      toast.error("Tag koordinat pemeriksaan dulu — cukup 1 kali di depan rumah");
+    // 2) Item MERAH wajib foto — langsung buka item pertama yang belum difoto
+    if (merahTanpaFoto.length > 0) {
+      const daftar = merahTanpaFoto.map((r) => r.itemId).join(", ");
+      toast.error(`${merahTanpaFoto.length} item MERAH belum ada foto (${daftar}). Foto wajib untuk setiap item merah.`);
+      store.setActiveItem(merahTanpaFoto[0].itemId);
+      setMobileScreen("inspect-item");
+      return;
+    }
+    // 3) Item belum diperiksa boleh kosong, tetapi minimal 1 item harus dinilai
+    if (dinilai === 0) {
+      toast.error("Nilai minimal 1 item dulu (item lain boleh dikosongkan).");
       return;
     }
     setMenyimpan(true);
@@ -380,6 +396,7 @@ export function InspectScreen() {
                           <span className="text-[12px] text-slate-400">{it.id}</span>
                           <span className="flex-1 text-[13px] font-medium text-slate-700">{it.label}</span>
                           {r && r.fotos.length > 0 && <span className="text-[11px] text-forest">{r.fotos.length} foto</span>}
+                          {r?.status === "M" && r.fotos.length === 0 && <span className="rounded bg-red-100 px-1.5 py-0.5 text-[11px] font-bold text-red-600">FOTO WAJIB</span>}
                           {r?.catatan ? <span className="h-1.5 w-1.5 rounded-full bg-gold" title="Ada catatan" /> : null}
                           <ChipStatus s={r?.status ?? "-"} />
                         </button>
@@ -393,7 +410,14 @@ export function InspectScreen() {
         </Accordion>
       </div>
       <div className="shrink-0 space-y-1.5 border-t bg-white p-3">
-        <Button onClick={simpan} disabled={menyimpan} className="h-11 w-full bg-forest text-[13px] font-bold hover:bg-forest-deep">
+        <ul className="space-y-0.5 text-[12px]">
+          <li className={gpsOk ? "text-green-700" : "font-semibold text-red-600"}>{gpsOk ? "✓" : "✗"} Koordinat sudah ditag</li>
+          <li className={merahTanpaFoto.length === 0 ? "text-green-700" : "font-semibold text-red-600"}>
+            {merahTanpaFoto.length === 0 ? "✓" : "✗"} {merah > 0 ? (merahTanpaFoto.length === 0 ? "Semua item merah sudah ada foto" : `${merahTanpaFoto.length} item merah belum difoto: ${merahTanpaFoto.map((r) => r.itemId).join(", ")}`) : "Tidak ada item merah"}
+          </li>
+          <li className={dinilai > 0 ? "text-green-700" : "font-semibold text-red-600"}>{dinilai > 0 ? "✓" : "✗"} {dinilai} dari 27 item dinilai (sisanya boleh kosong)</li>
+        </ul>
+        <Button onClick={simpan} disabled={menyimpan} className={cn("h-11 w-full text-[13px] font-bold", bisaSimpan ? "bg-forest hover:bg-forest-deep" : "bg-slate-400 hover:bg-slate-500")}>
           {menyimpan ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
           {menyimpan ? "Menyimpan..." : "Simpan Pemeriksaan"}
         </Button>
@@ -514,8 +538,10 @@ export function InspectItemScreen() {
                 </div>
               ))}
             </div>
+          ) : r?.status === "M" ? (
+            <p className="mt-2 flex items-center gap-1 rounded-lg bg-red-50 px-2 py-1.5 text-[12px] font-semibold text-red-700"><ImageOff className="h-3.5 w-3.5" /> Item MERAH wajib ada foto — pemeriksaan tidak bisa disimpan tanpa foto</p>
           ) : (
-            <p className="mt-2 flex items-center gap-1 text-[11px] text-slate-400"><ImageOff className="h-3 w-3" /> Belum ada foto pada item ini</p>
+            <p className="mt-2 flex items-center gap-1 text-[12px] text-slate-400"><ImageOff className="h-3 w-3" /> Belum ada foto pada item ini</p>
           )}
         </div>
 

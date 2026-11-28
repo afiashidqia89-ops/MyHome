@@ -396,7 +396,11 @@ export function ProfileScreen() {
   const [antre, setAntre] = useState(0);
   const [sinkronJalan, setSinkronJalan] = useState(false);
   const [mUnduh, setMUnduh] = useState(false);
-  useEffect(() => setAntre(hitungAntrean()), []);
+  const [catatanSinkron, setCatatanSinkron] = useState<string[]>([]);
+  useEffect(() => {
+    setAntre(hitungAntrean());
+    setCatatanSinkron(bacaSinkronTerakhir()?.catatan ?? []);
+  }, []);
   if (!session) return null;
 
   // ---------- DATA & EKSPOR (dipindah dari tab "Data" yang lama — menu diringkas) ----------
@@ -432,16 +436,21 @@ export function ProfileScreen() {
     try {
       const h = await sinkronAntrean();
       setAntre(h.sisa);
+      setCatatanSinkron(h.catatan);
       if (h.kirim > 0) {
         toast.success(`${h.kirim} data offline terkirim ke server`);
         refresh();
-      } else if (h.sisa > 0) {
-        toast.warning(`Server tidak terjangkau — ${h.sisa} data tetap aman di perangkat.`);
-      } else {
+      }
+      if (h.catatan.length > 0) {
+        // Tampilkan SEBAB sebenarnya (jaringan / sesi / ditolak server), bukan pesan generik
+        toast.warning(h.catatan[0], { duration: 9000 });
+      } else if (h.kirim === 0 && h.sisa > 0) {
+        toast.warning(`${h.sisa} data masih menunggu — coba sinkron lagi.`);
+      } else if (h.kirim === 0) {
         toast.info("Tidak ada data yang menunggu dikirim.");
       }
-    } catch {
-      toast.error("Sinkron gagal — cek koneksi / Set IP lalu coba lagi.");
+    } catch (e) {
+      toast.error(`Sinkron gagal: ${(e as Error).message || "cek koneksi / Set IP lalu coba lagi."}`);
     } finally {
       setSinkronJalan(false);
     }
@@ -484,6 +493,14 @@ export function ProfileScreen() {
           <div className="mt-2 rounded-lg bg-slate-50 p-2 text-[11.5px] text-slate-600">
             <p><b>{antre}</b> data menunggu dikirim saat online{antre > 0 ? " — pemeriksaan/temuan buatan offline aman di perangkat" : ""}.</p>
           </div>
+          {catatanSinkron.length > 0 && (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11.5px] leading-relaxed text-amber-900">
+              <p className="font-bold">Laporan sinkron terakhir</p>
+              <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
+                {catatanSinkron.slice(0, 5).map((c, i) => <li key={i}>{c}</li>)}
+              </ul>
+            </div>
+          )}
           <Button onClick={sinkron} disabled={sinkronJalan} className="mt-2 h-9 w-full bg-forest text-[12.5px] font-bold hover:bg-forest-deep">
             {sinkronJalan ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />} Sinkron Sekarang
           </Button>
